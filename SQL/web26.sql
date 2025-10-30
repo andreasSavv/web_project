@@ -2,7 +2,7 @@ CREATE TABLE user (
   user_id INT (11) PRIMARY KEY NOT NULL,
   user_username VARCHAR (255) UNIQUE NOT NULL,
   user_pass VARCHAR (255) NOT NULL,
-  user_category  ENUM('student','professor','secretary')
+  user_category  ENUM('Student','Professor','Secretary')
 );
 
 
@@ -269,23 +269,9 @@ INSERT INTO professor (professor_name, professor_surname, professor_tel,professo
 INSERT INTO secretary (secretary_user_id, secretary_name, secretary_surname) VALUES
 (30000, 'maria', 'kafk');
 
-CREATE TABLE diplo (
-  diplo_id INT(11) PRIMARY KEY NOT NULL,
-  diplo_title VARCHAR (255),
-  diplo_desc VARCHAR (500),
-  diplo_pdf VARCHAR (500) NOT NULL,
-  diplo_status ENUM('active', 'cancelled' ,'under assignment' , 'finished'),
-  diplo_trimelis VARCHAR (255),
-  diplo_student INT(11),
-  diplo_professor INT(11),
-  diplo_grade DECIMAL(4,2),
-  nimertis_link VARCHAR (255)
-);
-
-
 
 INSERT INTO diplo (diplo_id, diplo_title, diplo_desc, diplo_pdf, diplo_status, diplo_student, diplo_professor, diplo_grade, nimertis_link) VALUES
-(401, 'Ανάλυση δεδομένων πελατών για πρόβλεψη πωλήσεων με Python', 'dhjol', 'G:\My Drive\4ο έτος\7ο Εξάμηνο\Web\Project_26\uploads\diplo_.pdf', 'finished', 1000001, 20001, 9.0, ''),
+(401, 'Analysi dedomenon pelatwn gia provlepsi polisewn me Python', 'dhjol', 'G:\My Drive\4ο έτος\7ο Εξάμηνο\Web\Project_26\uploads\diplo_.pdf', 'finished', 1000001, 20001, 9.0, ''),
 (402, 'Συστήματα σύστασης προϊόντων με χρήση Machine Learning', 'apln', 'G:\My Drive\4ο έτος\7ο Εξάμηνο\Web\Project_26\uploads\diplo_1.pdf', 'finished', 1000002, 20001, 9.0, '' ),
 (403, 'Ανίχνευση ανωμαλιών σε συναλλαγές μέσω AI', 'alpk', 'G:\My Drive\4ο έτος\7ο Εξάμηνο\Web\Project_26\uploads\diplo_2.pdf', 'cancelled', 1000003, 20004, NULL, '' ),
 (404, 'Ανάλυση κοινωνικών δικτύων για προγνωστικά trends', 'askslck', 'G:\My Drive\4ο έτος\7ο Εξάμηνο\Web\Project_26\uploads\diplo_3.pdf' ,'active', 1000008, 20002, NULL, '' ),
