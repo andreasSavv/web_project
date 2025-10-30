@@ -1,4 +1,6 @@
 <?php
+// Δηλώνουμε UTF-8 ώστε να εμφανίζονται σωστά ελληνικά
+header('Content-Type: text/html; charset=utf-8');
 // Εμφάνιση σφαλμάτων (μόνο για δοκιμή)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -14,7 +16,7 @@ if ($conn->connect_error) {
 }
 
 // Παράδειγμα query (άλλαξε το όνομα του πίνακα ανάλογα με τη βάση σου)
-$sql = "SELECT * FROM diplo"; 
+$sql = "SELECT * FROM student"; 
 $result = $conn->query($sql);
 
 if ($result && $result->num_rows > 0) {
