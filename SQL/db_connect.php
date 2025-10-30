@@ -7,6 +7,6 @@ $dbname = "if0_40237844_web";           // database name
 $conn = new mysqli($servername, $username, $password, $dbname);
 
 if ($conn->connect_error) {
-    die("Connection error: " . $conn->connect_error);
+    die("Connection errorrrrrrrr: " . $conn->connect_error);
 }
 ?>
