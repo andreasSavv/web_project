@@ -1,49 +1,42 @@
 <?php
-// Δηλώνουμε UTF-8 ώστε να εμφανίζονται σωστά ελληνικά
-header('Content-Type: text/html; charset=utf-8');
-// Εμφάνιση σφαλμάτων (μόνο για δοκιμή)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Σύνδεση με τη βάση
+session_start();
 include 'db_connect.php';
 
-// Έλεγχος σύνδεσης
-if ($conn->connect_error) {
-    die("❌ Database connection failed: " . $conn->connect_error);
-} else {
-    echo "<h3>✅ Database connection successful!</h3>";
+// Έλεγχος αν ο χρήστης είναι συνδεδεμένος
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit;
 }
 
-// Παράδειγμα query (άλλαξε το όνομα του πίνακα ανάλογα με τη βάση σου)
-$sql = "SELECT * FROM student"; 
-$result = $conn->query($sql);
-
-if ($result && $result->num_rows > 0) {
-    echo "<h4>📋 Δείγμα δεδομένων από τη βάση:</h4>";
-    echo "<table border='1' cellpadding='6' style='border-collapse: collapse;'>";
-    echo "<tr>";
-
-    // Εμφάνιση των ονομάτων των στηλών
-    $fields = $result->fetch_fields();
-    foreach ($fields as $field) {
-        echo "<th>" . htmlspecialchars($field->name) . "</th>";
-    }
-    echo "</tr>";
-
-    // Εμφάνιση των γραμμών
-    while ($row = $result->fetch_assoc()) {
-        echo "<tr>";
-        foreach ($row as $value) {
-            echo "<td>" . htmlspecialchars($value) . "</td>";
-        }
-        echo "</tr>";
-    }
-
-    echo "</table>";
-} else {
-    echo "<p>Δεν βρέθηκαν δεδομένα ή πίνακας!</p>";
-}
-
-$conn->close();
+$username = $_SESSION['username'];
+$role = $_SESSION['role']; // Αν θέλεις να εμφανίσεις role
 ?>
+
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <title>Home Page</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        a.button { display: inline-block; padding: 8px 15px; margin-top: 10px; background: #007BFF; color: #fff; text-decoration: none; border-radius: 4px; }
+        a.button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Καλωσήρθες, <?php echo htmlspecialchars($username); ?>!</h1>
+    <p>Role: <?php echo htmlspecialchars($role); ?></p>
+    <p>Αυτή είναι η αρχική σελίδα του project σου.</p>
+
+    <h3>Μενού:</h3>
+    <ul>
+        <li><a href="profile.php">Προφίλ</a></li>
+        <li><a href="diplomas.php">Λίστα Διπλωματικών</a></li>
+        <li><a href="add_diploma.php">Προσθήκη Διπλωματικής</a></li>
+        <li><a href="logout.php" class="button">Αποσύνδεση</a></li>
+    </ul>
+</div>
+</body>
+</html>
