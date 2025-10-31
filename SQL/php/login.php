@@ -4,11 +4,13 @@ session_start();
 include("db_connect.php");
 include("connected.php");
 
-if($_SERVER['REQUEST_METHOD'] == "POST")
-    {
+$error_message = "";
+
+if($_SERVER['REQUEST_METHOD'] == "POST") {
         $username = $_POST['username']; 
         $password = $_POST['password']; 
-
+    
+        //elegxos username
         $query = "SELECT * from user where user_username = ?";
         $stmt = $connection->prepare($query);
         if (!$stmt){
@@ -20,6 +22,7 @@ if($_SERVER['REQUEST_METHOD'] == "POST")
 
         if($result && $result->num_rows === 1){
             $user = $result->fetch_assoc();
+
             //elexos an dothike sosto password
             if ($user['user_pass'] === $password){
                //Thetoume ta stixia sta session
@@ -27,48 +30,28 @@ if($_SERVER['REQUEST_METHOD'] == "POST")
                 $_SESSION['username'] = $user['user_username'];
                 $_SESSION['role'] = $user['user_category'];
                 //Oloi oi users redirect sto index.php
-            header("Location: index.php");
-            exit;
+
+            // Analoga me to category header stin analogi home page
+            if ($_SESSION['role'] === "professor") {
+                 header("Location: professor_page.php");
+                exit;
+            } else {
+                header("Location: index.php");
+                exit;
+}
+            elseif ($_SESSION['role'] === "student") {
+                header("Location: student_page.php");
+                exit;
+            } 
+            elseif ($_SESSION['role'] === "secretary") {
+                header("Location: secretary_page.php");
+                exit;
             } 
             else {
-            $error_message = "Λάθος κωδικός! Δοκίμασε ξανά.";
+                header("Location: index.php"); // default
+                exit;
             }
-    } else {
-        $error_message = "Δεν βρέθηκε λογαριασμός! Δοκίμασε ξανά.";
-        }
-}
-?>
-<?php
-session_start();
-include("db_connect.php");
 
-$error_message = "";
-
-if($_SERVER['REQUEST_METHOD'] == "POST") {
-    $username = $_POST['username']; 
-    $password = $_POST['password']; 
-
-    $query = "SELECT * FROM user WHERE user_username = ?";
-    $stmt = $conn->prepare($query);
-    if (!$stmt){
-        die("Failed: " . $conn->error);
-    }
-    $stmt->bind_param("s", $username);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if($result && $result->num_rows === 1) {
-        $user = $result->fetch_assoc();
-
-        if ($user['user_pass'] === $password){
-            // Θέτουμε session
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['username'] = $user['user_username'];
-            $_SESSION['role'] = $user['user_category'];
-
-            // Όλοι πηγαίνουν στο index.php
-            header("Location: index.php");
-            exit;
         } else {
             $error_message = "Λάθος κωδικός! Δοκίμασε ξανά.";
         }
@@ -77,6 +60,7 @@ if($_SERVER['REQUEST_METHOD'] == "POST") {
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="el">

@@ -1,6 +1,11 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 session_start();
+
+
 include 'db_connect.php';
+include("connected.php");   // Χρειάζεται για να πάρουμε τα στοιχεία του χρήστη
 
 // Έλεγχος αν ο χρήστης είναι συνδεδεμένος
 if (!isset($_SESSION['user_id'])) {
@@ -9,7 +14,20 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $username = $_SESSION['username'];
-$role = $_SESSION['role']; // Emfanizetai to role
+$role = $_SESSION['role']; // Εμφανίζεται ο ρόλος
+
+if ($_SESSION['role'] === 'Student') {
+    $user = Student_Connected($connection);
+     $name = $user['student_name'];
+}
+else if ($_SESSION['role'] === 'Professor') {
+    $user = Professor_Connected($connection);
+    $name = $user['professor_name'];
+}
+else if ($_SESSION['role'] === 'Secretary') {
+    $user = Secretary_Connected($connection);
+    $name = $user['secretary_name'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -26,9 +44,8 @@ $role = $_SESSION['role']; // Emfanizetai to role
 </head>
 <body>
 <div class="container">
-    <h1>Καλωσήρθες, <?php echo htmlspecialchars($username); ?>!</h1>
+    <h1>Καλωσήρθες, <?php echo htmlspecialchars($name); ?>!</h1>
     <p>Role: <?php echo htmlspecialchars($role); ?></p>
-    <p>Αυτή είναι η αρχική σελίδα του project σου.</p>
 
     <h3>Μενού:</h3>
     <ul>

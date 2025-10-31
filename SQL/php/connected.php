@@ -41,7 +41,7 @@ function Secretary_Connected($connection){
 } 
 
 function Student_Connected($connection){
-    if(isset($_SESSION['ser_id']))
+    if(isset($_SESSION['user_id']))
     {
         $id = $_SESSION['user_id'];
         $query ="select * from student where student_user_id = '$id'";
