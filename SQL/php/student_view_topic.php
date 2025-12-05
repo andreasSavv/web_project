@@ -35,6 +35,53 @@ $result = $stmt->get_result();
 
 $diplo = $result->fetch_assoc();
 
+$assignDate = null;
+$assignDateText = null;
+$timePassedText = "Δεν έχει οριστεί ημερομηνία ανάθεσης.";
+
+if ($diplo) {
+    // Παίρνουμε το diplo_id της συγκεκριμένης διπλωματικής
+    $diploId = $diplo['diplo_id'];
+
+    // Βρίσκουμε την ΠΡΩΤΗ (πιο παλιά) ημερομηνία από τον πίνακα diplo_date
+    // (αν το όνομα του πίνακα είναι άλλο, άλλαξέ το εδώ)
+    $sqlDate = "SELECT MIN(diplo_date) AS assign_date 
+                FROM diplo_date 
+                WHERE diplo_id = ?";
+    $stmtDate = $connection->prepare($sqlDate);
+    if ($stmtDate) {
+        $stmtDate->bind_param("i", $diploId);
+        $stmtDate->execute();
+        $resDate = $stmtDate->get_result();
+        if ($rowDate = $resDate->fetch_assoc()) {
+            $assignDate = $rowDate['assign_date']; // π.χ. "2025-01-14 00:00:00"
+        }
+    }
+
+    // Αν βρέθηκε ημερομηνία ανάθεσης → υπολογίζουμε πόσος χρόνος πέρασε
+    if (!empty($assignDate)) {
+        try {
+            $start = new DateTime($assignDate);
+            $now   = new DateTime();
+            $diff  = $start->diff($now);
+
+            // κρατάμε μορφοποιημένη ημερομηνία για εμφάνιση
+            $assignDateText = $start->format('d/m/Y');
+
+            $parts = [];
+            if ($diff->y > 0) $parts[] = $diff->y . " έτος" . ($diff->y > 1 ? "η" : "");
+            if ($diff->m > 0) $parts[] = $diff->m . " μήνας" . ($diff->m > 1 ? "ες" : "");
+            if ($diff->d > 0) $parts[] = $diff->d . " ημέρα" . ($diff->d > 1 ? "ες" : "");
+            if (empty($parts)) $parts[] = "0 ημέρες";
+
+            $timePassedText = implode(", ", $parts);
+        } catch (Exception $e) {
+            $timePassedText = "Σφάλμα στον υπολογισμό ημερομηνίας.";
+        }
+    }
+}
+
+
 ?>
 <!DOCTYPE html>
 <html lang="el">
@@ -131,11 +178,20 @@ $diplo = $result->fetch_assoc();
     </div>
 
     <div class="field">
-        <div class="field-label">Χρόνος από την επίσημη ανάθεση:</div>
-        <div class="field-value">
-            <?php echo htmlspecialchars($timePassedText); ?>
-        </div>
+    <div class="field-label">Χρόνος από την επίσημη ανάθεση:</div>
+    <div class="field-value">
+        <?php if ($assignDateText): ?>
+            Ημερομηνία ανάθεσης: 
+            <strong><?php echo htmlspecialchars($assignDateText); ?></strong>
+            — 
+            έχουν περάσει 
+            <strong><?php echo htmlspecialchars($timePassedText); ?></strong>.
+        <?php else: ?>
+            Δεν έχει οριστεί ημερομηνία ανάθεσης.
+        <?php endif; ?>
     </div>
+</div>
+
 
 <?php endif; ?>
 </div>
