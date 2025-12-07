@@ -34,7 +34,7 @@ $name = $user['professor_name'] ?? "Καθηγητής";
         <li><a href="diplomas.php">Διπλωματικές Εργασίες</a></li>
         <li><a href="add_diploma.php">Προσθήκη Νέας Διπλωματικής</a></li>
         <li><a href="logout.php">Αποσύνδεση</a></li>
-        <li><a href="edit_diploma">Επεξεργασία Διπλωματικής</a></li>
+        <li><a href="edit_diploma.php">Επεξεργασία Διπλωματικής</a></li>
     </ul>
 </div>
 </body>
