@@ -2,8 +2,6 @@
 session_start();
 include("db_connect.php");
 include("connected.php");
-include("add_diploma.php");
-include("diplomas.php");
 
 // Έλεγχος αν είναι professor
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
