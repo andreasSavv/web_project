@@ -31,10 +31,11 @@ $name = $user['professor_name'] ?? "Καθηγητής";
     <h2>Καλωσήρθες, Καθηγητά <?php echo htmlspecialchars($name); ?>!</h2>
     <p>Είσαι συνδεδεμένος επιτυχώς στο σύστημα.</p>
     <ul>
-        <li><a href="diplomas.php">Διπλωματικές Εργασίες</a></li>
+        <li><a href="view_diploma_pr.php">Διπλωματικές Εργασίες</a></li>
         <li><a href="add_diploma.php">Προσθήκη Νέας Διπλωματικής</a></li>
-        <li><a href="logout.php">Αποσύνδεση</a></li>
         <li><a href="edit_diploma.php">Επεξεργασία Διπλωματικής</a></li>
+        <li><a href="logout.php">Αποσύνδεση</a></li>
+        
     </ul>
 </div>
 </body>
