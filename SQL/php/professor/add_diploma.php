@@ -20,7 +20,7 @@ $message = "";
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $title = mysqli_real_escape_string($connection, $_POST['title']);
     $desc = mysqli_real_escape_string($connection, $_POST['desc']);
-    $status = "under assignment"; // Πάντα υπό ανάθεση
+    $status = "pending"; // Πάντα υπό ανάθεση
 
     // Upload PDF
     $pdf_name = "";
