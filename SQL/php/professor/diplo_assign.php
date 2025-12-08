@@ -10,7 +10,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
 }
 
 $user = Professor_Connected($connection);
-$prof_id = $user['professor_id'];
+$prof_id = $user['professor_user_id'];
 $message = "";
 $students = [];
 $diplomas = [];
@@ -19,7 +19,7 @@ $diplomas = [];
 $sql = "SELECT * FROM diplo 
         WHERE diplo_professor = '$prof_id'
         AND diplo_student IS NULL 
-        AND diplo_status = 'under assignment'";
+        AND diplo_status = 'pending'";
 
 $result = $connection->query($sql);
 if ($result) {
@@ -47,11 +47,11 @@ if (isset($_GET['search'])) {
 // ------------------ Ανάθεση θέματος ------------------
 if (isset($_POST['assign'])) {
     $diplo_id = $_POST['diplo_id'];
-    $student_id = $_POST['student_id'];
+    $student_id = $_POST['student_am'];
 
     $update = "UPDATE diplo SET 
                 diplo_student = '$student_id',
-                diplo_status = 'under assignment'
+                diplo_status = 'pending'
                WHERE diplo_id = '$diplo_id'";
 
     if ($connection->query($update)) {
@@ -182,7 +182,7 @@ if (isset($_POST['cancel_assignment'])) {
                             <td>
                                 <form method="POST">
                                     <input type="hidden" name="diplo_id" value="<?= $selected_diplo ?>">
-                                    <input type="hidden" name="student_id" value="<?= $s['student_id'] ?>">
+                                    <input type="hidden" name="student_user_id" value="<?= $s['student_user_id'] ?>">
                                     <button class="btn btn-success btn-sm" name="assign">
                                         Ανάθεση
                                     </button>

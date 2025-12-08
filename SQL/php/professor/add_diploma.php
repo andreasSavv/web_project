@@ -11,7 +11,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
 
 // Στοιχεία καθηγητή
 $user = Professor_Connected($connection);
-$prof_id = $user['professor_id'];
+$prof_id = $user['professor_user_id'];
 $name = $user['professor_name'];
 
 // ------------------ ΔΗΜΙΟΥΡΓΙΑ ΝΕΟΥ ΘΕΜΑΤΟΣ --------------------
