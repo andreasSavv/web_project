@@ -59,11 +59,16 @@ if (isset($_POST['assign'])) {
 
     if ($check->num_rows > 0) {
         $message = "⚠ Ο φοιτητής έχει ήδη αναλάβει άλλη διπλωματική και δεν μπορεί να πάρει δεύτερη.";
-    }else{
-    $update = "UPDATE diplo SET 
+    }else {
+
+         $update = "UPDATE diplo SET 
                 diplo_student = '$student_id',
                 diplo_status = 'pending'
                WHERE diplo_id = '$diplo_id'";
+
+   
+    }
+   
                
 
     if ($connection->query($update)) {
@@ -72,7 +77,7 @@ if (isset($_POST['assign'])) {
         $message = "Σφάλμα: " . $connection->error;
     }
     }
-}
+
 
 // ------------------ Ανάκληση ανάθεσης ------------------
 if (isset($_POST['cancel_assignment'])) {
