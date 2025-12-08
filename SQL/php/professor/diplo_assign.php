@@ -33,7 +33,7 @@ if (isset($_GET['search'])) {
     $term = mysqli_real_escape_string($connection, $_GET['search']);
 
     $q = "SELECT * FROM student 
-          WHERE am LIKE '%$term%' 
+          WHERE student_am LIKE '%$term%' 
           OR student_name LIKE '%$term%' 
           OR student_surname LIKE '%$term%'";
 
@@ -177,12 +177,12 @@ if (isset($_POST['cancel_assignment'])) {
                     <tbody>
                     <?php foreach ($students as $s): ?>
                         <tr>
-                            <td><?= $s['am'] ?></td>
+                            <td><?= $s['student_am'] ?></td>
                             <td><?= $s['student_name'] . " " . $s['student_surname'] ?></td>
                             <td>
                                 <form method="POST">
                                     <input type="hidden" name="diplo_id" value="<?= $selected_diplo ?>">
-                                    <input type="hidden" name="student_user_id" value="<?= $s['student_user_id'] ?>">
+                                    <input type="hidden" name="student_am" value="<?= $s['student_am'] ?>">
                                     <button class="btn btn-success btn-sm" name="assign">
                                         Ανάθεση
                                     </button>
