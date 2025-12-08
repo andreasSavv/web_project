@@ -11,7 +11,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
 
 // Στοιχεία καθηγητή
 $user = Professor_Connected($connection);
-$prof_id = $user['professor_id'];
+$prof_user_id = $user['professor_user_id'];
 $message = "";
 
 // ------------------------- Αποδοχή Πρόσκλησης -----------------------------------
@@ -21,7 +21,7 @@ if (isset($_POST['accept'])) {
     $sql = "UPDATE trimelous_invite
             SET invite_status = 'accept'
             WHERE diplo_id = '$diplo_id'
-            AND professor_user_id = '$prof_id'";
+            AND professor_user_id = '$prof_user_id'";
 
     if ($connection->query($sql)) {
         $message = "Η πρόσκληση έγινε αποδεκτή.";
@@ -37,7 +37,7 @@ if (isset($_POST['deny'])) {
     $sql = "UPDATE trimelous_invite
             SET invite_status = 'deny'
             WHERE diplo_id = '$diplo_id'
-            AND professor_user_id = '$prof_id'";
+            AND professor_user_id = '$prof_user_id'";
 
     if ($connection->query($sql)) {
         $message = "Η πρόσκληση απορρίφθηκε.";
@@ -47,11 +47,10 @@ if (isset($_POST['deny'])) {
 }
 
 // ------------------------- Φόρτωση ενεργών προσκλήσεων ----------------------------
-
 $sql = "SELECT t.*, d.diplo_title
         FROM trimelous_invite t
         JOIN diplo d ON d.diplo_id = t.diplo_id
-        WHERE t.professor_user_id = '$prof_id'
+        WHERE t.professor_user_id = '$prof_user_id'
         AND t.invite_status = 'pending'";
 
 $result = $connection->query($sql);
