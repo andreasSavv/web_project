@@ -14,15 +14,14 @@ $user = Professor_Connected($connection);
 $prof_id = $user['professor_id'];
 $message = "";
 
-// ------------------------- Ενέργεια Αποδοχής ----------------------------------
+// ------------------------- Αποδοχή Πρόσκλησης -----------------------------------
 if (isset($_POST['accept'])) {
+    $diplo_id = $_POST['diplo_id'];
 
-    $invite_id = $_POST['invite_id'];
-
-    $sql = "UPDATE committee_invitations 
-            SET status='accepted' 
-            WHERE invitation_id='$invite_id' 
-            AND professor_id='$prof_id'";
+    $sql = "UPDATE trimelous_invite
+            SET invite_status = 'accept'
+            WHERE diplo_id = '$diplo_id'
+            AND professor_user_id = '$prof_id'";
 
     if ($connection->query($sql)) {
         $message = "Η πρόσκληση έγινε αποδεκτή.";
@@ -31,15 +30,14 @@ if (isset($_POST['accept'])) {
     }
 }
 
-// ------------------------- Ενέργεια Απόρριψης ----------------------------------
-if (isset($_POST['reject'])) {
+// ------------------------- Απόρριψη Πρόσκλησης -----------------------------------
+if (isset($_POST['deny'])) {
+    $diplo_id = $_POST['diplo_id'];
 
-    $invite_id = $_POST['invite_id'];
-
-    $sql = "UPDATE committee_invitations 
-            SET status='rejected' 
-            WHERE invitation_id='$invite_id' 
-            AND professor_id='$prof_id'";
+    $sql = "UPDATE trimelous_invite
+            SET invite_status = 'deny'
+            WHERE diplo_id = '$diplo_id'
+            AND professor_user_id = '$prof_id'";
 
     if ($connection->query($sql)) {
         $message = "Η πρόσκληση απορρίφθηκε.";
@@ -48,15 +46,13 @@ if (isset($_POST['reject'])) {
     }
 }
 
-// ------------------------- Φόρτωση Ενεργών Προσκλήσεων -------------------------
-$sql = "SELECT i.invitation_id, i.status, 
-               d.diplo_title, d.diplo_id,
-               p.professor_name AS sender_name
-        FROM committee_invitations i
-        JOIN diplo d ON d.diplo_id = i.diplo_id
-        JOIN professor p ON p.professor_id = i.sender_professor_id
-        WHERE i.professor_id='$prof_id'
-        AND i.status='pending'";
+// ------------------------- Φόρτωση ενεργών προσκλήσεων ----------------------------
+
+$sql = "SELECT t.*, d.diplo_title
+        FROM trimelous_invite t
+        JOIN diplo d ON d.diplo_id = t.diplo_id
+        WHERE t.professor_user_id = '$prof_id'
+        AND t.invite_status = 'pending'";
 
 $result = $connection->query($sql);
 
@@ -86,7 +82,7 @@ if ($result) {
 
 <div class="container mt-4">
 
-    <h2 class="fw-bold text-center">Προσκλήσεις Συμμετοχής σε Τριμελείς</h2>
+    <h2 class="fw-bold text-center">Προσκλήσεις Συμμετοχής σε Τριμελείς Επιτροπές</h2>
 
     <?php if ($message): ?>
         <div class="alert alert-info text-center mt-3"><?= $message ?></div>
@@ -106,9 +102,9 @@ if ($result) {
                 <table class="table table-bordered table-striped">
                     <thead class="table-dark">
                         <tr>
-                            <th>Θέμα</th>
-                            <th>Αποστολέας</th>
-                            <th>Κατάσταση</th>
+                            <th>Θέμα Διπλωματικής</th>
+                            <th>Αριθμός Μητρώου Φοιτητή</th>
+                            <th>Ημερομηνία Πρόσκλησης</th>
                             <th>Ενέργειες</th>
                         </tr>
                     </thead>
@@ -117,23 +113,19 @@ if ($result) {
                     <?php foreach ($invitations as $inv): ?>
                         <tr>
                             <td><?= htmlspecialchars($inv['diplo_title']) ?></td>
-                            <td><?= htmlspecialchars($inv['sender_name']) ?></td>
-                            <td>
-                                <span class="badge bg-warning text-dark">
-                                    Σε αναμονή
-                                </span>
-                            </td>
+                            <td><?= htmlspecialchars($inv['diplo_student_am']) ?></td>
+                            <td><?= htmlspecialchars($inv['trimelous_date']) ?></td>
                             <td>
                                 <form method="POST" class="d-inline">
-                                    <input type="hidden" name="invite_id" value="<?= $inv['invitation_id'] ?>">
+                                    <input type="hidden" name="diplo_id" value="<?= $inv['diplo_id'] ?>">
                                     <button name="accept" class="btn btn-success btn-sm">
                                         Αποδοχή
                                     </button>
                                 </form>
 
                                 <form method="POST" class="d-inline ms-1">
-                                    <input type="hidden" name="invite_id" value="<?= $inv['invitation_id'] ?>">
-                                    <button name="reject" class="btn btn-danger btn-sm">
+                                    <input type="hidden" name="diplo_id" value="<?= $inv['diplo_id'] ?>">
+                                    <button name="deny" class="btn btn-danger btn-sm">
                                         Απόρριψη
                                     </button>
                                 </form>
