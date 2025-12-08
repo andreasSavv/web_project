@@ -32,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     $query = "INSERT INTO diplo (diplo_title, diplo_desc, diplo_pdf, diplo_status, diplo_professor)
-              VALUES ('$title', '$desc', '$pdf_name', '$status', '$prof_id')";
+              VALUES ('$title', '$desc', '$pdf_name', 'pending', '$prof_id')";
 
     if ($connection->query($query)) {
         $message = "Το θέμα προστέθηκε επιτυχώς!";
@@ -43,7 +43,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 // ------------------ ΠΡΟΒΟΛΗ ΘΕΜΑΤΩΝ --------------------
 $topics = [];
-$sql = "SELECT * FROM diplo WHERE diplo_professor = '$prof_id' AND diplo_status = 'under assignment'";
+$sql = "SELECT * FROM diplo WHERE diplo_professor = '$prof_id' AND diplo_status = 'pending'";
 $res = $connection->query($sql);
 
 if ($res) {
