@@ -1,0 +1,344 @@
+<?php
+session_start();
+
+include("database_connection.php");
+include("functions.php");
+
+$user = login_session_professor($connection);
+$_SESSION['username'] = $user['Professor_name'] . " " . $user['Professor_surname'];
+$_SESSION['email'] = $user['Professor_email'];
+
+if (isset($_SESSION['role']) && ($_SESSION['role'] === "professor")) {
+
+  $invites = [];
+  $query  = "SELECT * FROM Trimelous_invitation WHERE Invitation_Status = 'Pending' AND Professor_User_id = '" . $user['Professor_User_ID'] . "'";
+  $result = $connection->query($query);
+
+  if ($result) {
+      while ($row = $result->fetch_assoc()) {
+          $invites[] = $row;
+      }
+  } else {
+      $error = $connection->error;
+  }
+
+  $pending_count = count($invites);
+
+} else {
+  header("Location: login.php");
+  exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Αρχική Σελίδα Καθηγητή </title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; }
+    @media (max-width: 767.98px){
+      main { padding-top: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <button class="btn btn-outline-light me-2 d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle sidebar">
+      ☰ Μενού
+    </button>
+
+    <a class="navbar-brand">Η Πλατφόρμα</a>
+    <a href="professor_page.php" class="btn btn-success ms-2">Αρχική</a>
+
+            <div class="ms-auto">
+            <a href="logout.php" class="btn btn-danger">Αποσύνδεση</a>
+        </div>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="row">
+    <?php
+include "sidebar.php";
+    ?>
+
+    <main class="col-md-8 col-lg-9 ms-sm-auto px-3 px-md-4">
+      <div class="pt-4">
+        <h1 class="text-center fw-bold">Καλώς ήρθες στη σελίδα του Καθηγητή!</h1>
+        <p class="lead text-center">Εδώ μπορείς να δεις τις επιλογές σου στην Πλατφόρμα:</p>
+      </div>
+      
+<div class="container mt-4">
+    <div class="row g-4">
+        
+   <!-- Επιλογή 1 Δημιουργία Διπλωματικής Εργασίας-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 1</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Δημιουργία Διπλωματικής Εργασίας
+                    </p>
+                    <a class="btn btn-primary w-100" href="form_create_diplomatiki.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        
+        <!-- Επιλογή 2 Ανάθεση Διπλωματικής Εργασίας -->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 2</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                     Ανάθεση Διπλωματικής Εργασίας
+                    </p>
+                    <a class="btn btn-primary w-100" href="thesis_assignation.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 3 Προβολή προσκλήσεων σε τριμελή -->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 3</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                     Προβολή προσκλήσεων συμμετοχής σε τριμελή
+                    </p>
+                    <a class="btn btn-primary w-100" href="form_pending_invitation.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+          
+        <!-- Επιλογή 4 Λίστα Διπλωματικών Εργασιών --> 
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 4</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                        Λίστα Διπλωματικών Εργασιών
+                    </p>
+                    <a class="btn btn-primary w-100" href="thesis_filter_professor.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+        
+        <!-- Επιλογή 5 Ακύρωση Ενεργής Διπλωματικής Εργασίας-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 5</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Ακύρωση Ενεργής Διπλωματικής Εργασίας
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_cancel_thesis.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+         <!-- Επιλογή 6 Ακύρωση "Υπό Ανάθεση" Διπλωματικής Εργασίας-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 6</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Ακύρωση "Υπό Ανάθεση" Διπλωματικής Εργασίας
+                    </p>
+                    <a class="btn btn-primary w-100" href="cancel_pending_thesis.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 7 Αλλαγή Κατάστασης Διπλωματικής Εργασίας σε Περατωμένη-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 7</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Αλλαγή Κατάστασης Διπλωματικής Εργασίας σε "Υπο Εξέταση"
+                    </p>
+                    <a class="btn btn-primary w-100" href="thesis_status_under_review.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+         <!-- Επιλογή 8  Σημειώσεις Διπλωματικής Εργασίας-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 8</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                     Σημειώσεις Διπλωματικής Εργασίας
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_notes.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+    <!-- Επιλογή 9 Ενεργοποίηση Βαθμού Διπλωματικής Εργασίας -->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 9</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                         Ενεργοποίηση Δυνατότητας Προσθήκης Βαθμού Διπλωματικής Εργασίας ως Επιβλέπων
+                    </p>
+                    <a class="btn btn-primary w-100" href="grading_enabled.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        
+
+    <!-- Επιλογή 10 Καταχώρηση Βαθμού -->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 10</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                         Καταχώρηση Βαθμού Διπλωματικής Εργασίας ως Μέλος Τριμελούς Επιτροπής
+                    </p>
+                    <a class="btn btn-primary w-100" href="thesis_grading.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+       
+    <!-- Επιλογή 11 Γραφικές Παραστάσεις Καθηγητή -->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 11</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                            Προβολή Στατιστικών
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_chart.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+            <!-- Επιλογή 12 Προβολή καθηγητών που έχουν προσκληθεί ως μέλος τριμελούς -->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 12</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                     <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                            Προβολή απαντήσεων καθηγητών που έχουν προσκληθεί ως μέλος τριμελούς
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_show_invitations.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 13 Επεξεργασία Διπλωματικής Εργασίας-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 13</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Επεξεργασία Διπλωματικής Εργασίας
+                    </p>
+                    <a class="btn btn-primary w-100" href="form_edit_thesis.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 14 Σημειώσεις Διπλωματικών Εργασιών-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 14</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Σημειώσεις Διπλωματικών Εργασιών
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_show_notes.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 15 Βαθμοι Διπλωματικών Εργασιών ως Μέλος Τριμελούς-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 15</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                    Βαθμοι Διπλωματικών Εργασιών ως Μέλος Τριμελούς
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_show_grades.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 16 Προβολή πρόχειρου κειμένου φοιτητή ως μέλος τριμελούς-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 16</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                     Προβολή πρόχειρου κειμένου φοιτητή ως μέλος τριμελούς
+                    </p>
+                    <a class="btn btn-primary w-100" href="professor_show_student_notes.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+        <!-- Επιλογή 17 Δημιουργία ανακοίνωσης ως επιβλέπων-->
+        <div class="col-md-12 col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 d-flex flex-column">
+                <div class="card-header text-center fw-bold">Επιλογή 17</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <p class="text-center flex-grow-1 d-flex align-items-center justify-content-center mb-3 fs-6" style="min-height: 100px; font-family: Arial, sans-serif;">
+                     Δημιουργία ανακοίνωσης ως επιβλέπων
+                    </p>
+                    <a class="btn btn-primary w-100" href="form_announcements.php" role="button" aria-expanded="false">
+                    Μετάβαση
+                </a>
+            </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+</div>
+
+         
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
