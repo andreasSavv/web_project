@@ -3,12 +3,13 @@ session_start();
 include("db_connect.php");
 include("connected.php");
 
-// Έλεγχος αν είναι καθηγητής
+// Έλεγχος αν είναι professor
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
     header("Location: login.php");
     exit;
 }
 
+// Παίρνουμε τα στοιχεία του καθηγητή
 $user = Professor_Connected($connection);
 $name = $user['professor_name'] ?? "Καθηγητής";
 ?>
