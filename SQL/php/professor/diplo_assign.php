@@ -15,6 +15,7 @@ $message = "";
 $students = [];
 $diplomas = [];
 
+
 // ------------------ Φόρτωση διαθέσιμων θεμάτων (χωρίς φοιτητή) ------------------
 $sql = "SELECT * FROM diplo 
         WHERE diplo_professor = '$prof_id'
@@ -48,16 +49,28 @@ if (isset($_GET['search'])) {
 if (isset($_POST['assign'])) {
     $diplo_id = $_POST['diplo_id'];
     $student_id = $_POST['student_am'];
+    
+    $check = $connection->query("
+        SELECT diplo_id 
+        FROM diplo 
+        WHERE diplo_student = '$student_id'
+        AND diplo_id != '$diplo_id'
+    ");
 
+    if ($check->num_rows > 0) {
+        $message = "⚠ Ο φοιτητής έχει ήδη αναλάβει άλλη διπλωματική και δεν μπορεί να πάρει δεύτερη.";
+    }else{
     $update = "UPDATE diplo SET 
                 diplo_student = '$student_id',
                 diplo_status = 'pending'
                WHERE diplo_id = '$diplo_id'";
+               
 
     if ($connection->query($update)) {
         $message = "Το θέμα ανατέθηκε προσωρινά στον φοιτητή!";
     } else {
         $message = "Σφάλμα: " . $connection->error;
+    }
     }
 }
 
