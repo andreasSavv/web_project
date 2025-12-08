@@ -1,12 +1,14 @@
 <?php
 session_start();
 
-include("database_connection.php");
-include("functions.php");
+include("db_connect.php");
+include("connected.php");
 
-$user = login_session_professor($connection);
-$_SESSION['username'] = $user['Professor_name'] . " " . $user['Professor_surname'];
-$_SESSION['email'] = $user['Professor_email'];
+
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
+    header("Location: login.php");
+    exit;
+}
 
 if (isset($_SESSION['role']) && ($_SESSION['role'] === "professor")) {
 
