@@ -1,174 +1,95 @@
 <?php
 session_start();
-include("db_connect.php");
-include("connected.php");
 
-// Έλεγχος ρόλου
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
+    include("database_connection.php");
+    include("functions.php");
+
+    $user = login_session_professor($connection);
+
+if (isset($_SESSION['role']) && ($_SESSION['role'] === "professor")){
+    }
+else {
+    // If the user is not logged in as a professor, redirect to the login page
     header("Location: login.php");
     exit;
 }
 
-// Δεδομένα καθηγητή (ID)
-$user = Professor_Connected($connection);
-$professor_id = $user['professor_id']; 
-$name = $user['professor_name'];
-
-// -------------------------
-// ===== ΦΙΛΤΡΑ =====
-// -------------------------
-$status_filter = $_GET['status'] ?? '';
-$role_filter   = $_GET['role']   ?? '';
-
-// -------------------------
-// ===== Query για διπλωματικές =====
-// -------------------------
-$sql = "
-SELECT * FROM diplo
-WHERE (
-    diplo_professor = ?
-    OR FIND_IN_SET(?, diplo_trimelis)
-)
-";
-
-// Φιλτράρισμα κατάστασης
-if ($status_filter !== "") {
-    $sql .= " AND diplo_status = ? ";
-}
-
-// Φιλτράρισμα ρόλου
-if ($role_filter === "supervisor") {
-    $sql .= " AND diplo_professor = ? ";
-}
-if ($role_filter === "trimelis") {
-    $sql .= " AND FIND_IN_SET(?, diplo_trimelis) ";
-}
-
-$sql .= " ORDER BY diplo_id DESC";
-
-$stmt = $connection->prepare($sql);
-
-// Δέσμευση τιμών δυναμικά
-$params = [$professor_id, $professor_id];
-
-if ($status_filter !== "") $params[] = $status_filter;
-if ($role_filter === "supervisor") $params[] = $professor_id;
-if ($role_filter === "trimelis") $params[] = $professor_id;
-
-$stmt->execute($params);
-$diplomas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// -------------------------
-// ===== Εξαγωγή CSV =====
-// -------------------------
-if (isset($_GET['export']) && $_GET['export'] === "csv") {
-    header("Content-Type: text/csv");
-    header("Content-Disposition: attachment; filename=diplomas.csv");
-
-    $out = fopen("php://output", "w");
-
-    if (!empty($diplomas)) {
-        fputcsv($out, array_keys($diplomas[0])); // headers
-        foreach ($diplomas as $row) fputcsv($out, $row);
-    }
-    exit;
-}
-
-// -------------------------
-// ===== Εξαγωγή JSON =====
-// -------------------------
-if (isset($_GET['export']) && $_GET['export'] === "json") {
-    header("Content-Type: application/json");
-    header("Content-Disposition: attachment; filename=diplomas.json");
-    echo json_encode($diplomas, JSON_PRETTY_PRINT);
-    exit;
-}
 ?>
-
 <!DOCTYPE html>
 <html lang="el">
 <head>
-<meta charset="UTF-8">
-<title>Διπλωματικές Εργασίες</title>
-<style>
-    body { font-family: Arial; background: #f4f4f4; margin: 40px; }
-    .container { background: white; padding: 20px; border-radius: 10px; max-width: 1000px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; border: 1px solid #ccc; }
-    th { background: #ddd; }
-    a { color: #007bff; text-decoration: none; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Αρχική Σελίδα Καθηγητή </title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; }
+    @media (max-width: 767.98px){
+      main { padding-top: 1rem; }
+    }
+  </style>
 </head>
-
 <body>
-<div class="container">
 
-<h2>📘 Οι Διπλωματικές Μου</h2>
-<p>Καθηγητής: <strong><?= htmlspecialchars($name) ?></strong></p>
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <button class="btn btn-outline-light me-2 d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle sidebar">
+      ☰ Μενού
+    </button>
 
-<!-- ΦΙΛΤΡΑ -->
-<form method="GET">
-    <label>Κατάσταση:</label>
-    <select name="status">
-        <option value="">Όλες</option>
-        <option value="active" <?= $status_filter=="active"?"selected":"" ?>>Active</option>
-        <option value="under assignment" <?= $status_filter=="under assignment"?"selected":"" ?>>Under Assignment</option>
-        <option value="finished" <?= $status_filter=="finished"?"selected":"" ?>>Finished</option>
-        <option value="cancelled" <?= $status_filter=="cancelled"?"selected":"" ?>>Cancelled</option>
-    </select>
+    <a class="navbar-brand">Η Πλατφόρμα</a>
+    <a href="professor_page.php" class="btn btn-success ms-2">Αρχική</a>
 
-    <label>Ρόλος:</label>
-    <select name="role">
-        <option value="">Όλοι</option>
-        <option value="supervisor" <?= $role_filter=="supervisor"?"selected":"" ?>>Επιβλέπων</option>
-        <option value="trimelis" <?= $role_filter=="trimelis"?"selected":"" ?>>Τριμελής</option>
-    </select>
+            <div class="ms-auto">
+            <a href="logout.php" class="btn btn-danger">Αποσύνδεση</a>
+        </div>
+  </div>
+</nav>
 
-    <button type="submit">Φιλτράρισμα</button>
-</form>
+<div class="container-fluid">
+  <div class="row">
+    <?php
+include "sidebar.php";
+    ?>
 
-<br>
 
-<a href="diplomas.php?export=csv">📄 Εξαγωγή CSV</a> |
-<a href="diplomas.php?export=json">📄 Εξαγωγή JSON</a>
+<main class="col-md-8 col-lg-9 ms-sm-auto px-3 px-md-4 pt-4">
+  <div id="Create_Diplomatiki" class="card shadow-lg p-4">
+    <h2 class="mb-4 text-center text-primary">
+      Προβολή Λίστας Διπλωματικών Εργασιών
+    </h2>
 
-<hr>
+    <!-- Σταθερά κουμπιά κάτω από τον τίτλο -->
+    <div class="mb-4 text-center">
+      <button id="allthesis" class="btn btn-primary m-2">Όλες οι Διπλωματικές</button>
+      <button id="trimelis" class="btn btn-secondary m-2">Διπλωματικές που είστε μέλος τριμελούς</button>
+      <button id="epimelitis" class="btn btn-info m-2">Διπλωματικές που είστε επιμελητής</button>
+      <button id="xronologio" class="btn btn-warning m-2">Χρονολόγιο ενεργειών</button>
+      <button id="meloi_trimeloi" class="btn btn-success m-2">Μέλη τριμελούς</button>
+      <newline></newline>
+      <label for="statusselect" class="ms-3">Κατάσταση Διπλωματικής:</label>
+      <select id="statusselect" class="form-select d-inline-block w-auto ms-2">
+        <option value="" disabled selected>Select status</option>  
+        <option value="pending">pending</option>
+        <option value="active">active</option>
+        <option value="ready">ready</option>
+        <option value="cancel">cancel</option>
+        <option value="under_review">under_review</option>
+      </select>
 
-<table>
-<tr>
-    <th>ID</th>
-    <th>Τίτλος</th>
-    <th>Φοιτητής</th>
-    <th>Κατάσταση</th>
-    <th>Ρόλος</th>
-    <th>Ενέργειες</th>
-</tr>
+    </div>
 
-<?php foreach ($diplomas as $d): ?>
-<tr>
-    <td><?= $d['diplo_id'] ?></td>
-    <td><?= htmlspecialchars($d['diplo_title']) ?></td>
-    <td><?= $d['diplo_student'] ?: "-" ?></td>
-    <td><?= $d['diplo_status'] ?></td>
+    <!-- Εμφάνιση δεδομένων -->
+    <div id="data_display"></div>
+  </div>
+</main>
 
-    <td>
-        <?php 
-            if ($d['diplo_professor'] == $professor_id) echo "Επιβλέπων";
-            else echo "Τριμελής";
-        ?>
-    </td>
 
-    <td>
-        <a href="view_diploma.php?id=<?= $d['diplo_id'] ?>">Προβολή</a>
-    </td>
-</tr>
-<?php endforeach; ?>
 
-</table>
-
-<br>
-<a href="professor_page.php">⬅ Επιστροφή</a>
-
-</div>
+        <script src="../JavaScript/show_diplo_professor.js" defer></script>
 </body>
+
+
+
 </html>
