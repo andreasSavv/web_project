@@ -20,24 +20,12 @@ $name = $user['professor_name'] ?? "Καθηγητής";
     <meta charset="UTF-8">
     <title>Πίνακας Ελέγχου Διδάσκοντα</title>
 
-    
 
-    <style>
-        body {
-            background: #eef2f7;
-            font-family: Arial;
-            padding: 30px;
-        }
-        .menu-card {
-            border-radius: 12px;
-            transition: transform .2s;
-        }
-        .menu-card:hover {
-            transform: scale(1.03);
-        }
-        h2 span {
-            color: #007bff;
-        }
+     <style>
+        body { font-family: Arial; background: #f4f4f4; margin: 40px; }
+        .container { background: white; padding: 20px; border-radius: 10px; max-width: 800px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
     </style>
 </head>
 
