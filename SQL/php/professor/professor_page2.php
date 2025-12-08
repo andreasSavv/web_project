@@ -20,8 +20,7 @@ $name = $user['professor_name'] ?? "Καθηγητής";
     <meta charset="UTF-8">
     <title>Πίνακας Ελέγχου Διδάσκοντα</title>
 
-    <!-- Bootstrap -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    
 
     <style>
         body {
