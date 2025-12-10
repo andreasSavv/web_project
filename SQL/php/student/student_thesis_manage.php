@@ -61,12 +61,32 @@ if ($diploStatus !== 'pending') {
 if ($diploStatus === 'pending') {
 
     // 5α. Αν ο φοιτητής έστειλε νέα πρόσκληση
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['professor_user_id'])) {
-        $profUserId = (int)$_POST['professor_user_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['professor_user_id'])) {
+    $profUserId = (int)$_POST['professor_user_id'];
 
-        if ($profUserId <= 0) {
-            $error_message = "Πρέπει να επιλέξετε Διδάσκοντα.";
+    if ($profUserId <= 0) {
+        $error_message = "Πρέπει να επιλέξετε Διδάσκοντα.";
+    } else {
+
+        // 1) Βρίσκουμε τον επιβλέποντα για αυτή τη διπλωματική (professor_user_id)
+        $sqlSup = "SELECT p.professor_user_id 
+                   FROM diplo d
+                   JOIN professor p ON d.diplo_professor = p.professor_user_id
+                   WHERE d.diplo_id = ?";
+        $stmtSup = $connection->prepare($sqlSup);
+        $stmtSup->bind_param("i", $diploId);
+        $stmtSup->execute();
+        $resSup = $stmtSup->get_result();
+        $rowSup = $resSup->fetch_assoc();
+        $stmtSup->close();
+
+        $supervisorUserId = $rowSup ? (int)$rowSup['professor_user_id'] : null;
+
+        // 2) Αν ο φοιτητής πάει να καλέσει τον επιβλέποντα → κόβεται
+        if ($supervisorUserId !== null && $profUserId === $supervisorUserId) {
+            $error_message = "Δεν μπορείτε να προσκαλέσετε τον επιβλέποντα ως μέλος της τριμελούς.";
         } else {
+
             // Έλεγχος αν έχει ήδη σταλεί πρόσκληση σε αυτόν τον καθηγητή
             $sqlCheck = "SELECT COUNT(*) AS cnt 
                          FROM trimelous_invite 
@@ -100,6 +120,8 @@ if ($diploStatus === 'pending') {
             }
         }
     }
+}
+
 
     // 5β. Φέρνουμε όλες τις προσκλήσεις για αυτή τη διπλωματική
     $sqlInv = "SELECT ti.*, p.professor_name, p.professor_surname
