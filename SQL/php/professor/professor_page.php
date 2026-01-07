@@ -43,7 +43,6 @@ $name = $user['professor_name'] ?? "Καθηγητής";
         <li><a href="diplo_grade.php">10)Καταχώρηση Βαθμού</a></li>
         <li><a href="prof_graphs.php">11)Γραφικές Παραστάσεις Καθηγητή</a></li>
         <li><a href="prof_show_invite.php">12)Προβολή Καθηγητών που εχουν προσκληθεί ως μέλος τριμελούς</a></li>
-        <li><a href="edit_diploma.php">13)Επεξεργασία Διπλωματικής</a></li>
         <li><a href="prof_show_notes.php">14)Σημειώσεις Διπλωματικών Εργασιών</a></li>
         <li><a href="prof_show_grades.php">15)Βαθμοί ΔΕ ως μέλος τριμελούς</a></li>
         <li><a href="prof_show_st_notes.php">16)Προβολή πρόχειρου κειμένου φοιτητή ως μέλος τριμελούς</a></li>
