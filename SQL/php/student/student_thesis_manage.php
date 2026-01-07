@@ -220,22 +220,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['professor_user_id']))
     }
 
     // 5ε. Λίστα διαθέσιμων καθηγητών για νέα πρόσκληση
-    $sqlProf = "SELECT professor_user_id, professor_name, professor_surname
-                FROM professor
-                WHERE professor_user_id NOT IN (
-                    SELECT professor_user_id
-                    FROM trimelous_invite
-                    WHERE diplo_id = ?
-                )
-                ORDER BY professor_surname, professor_name";
-    $stmtProf = $connection->prepare($sqlProf);
-    $stmtProf->bind_param("i", $diploId);
-    $stmtProf->execute();
-    $resProf = $stmtProf->get_result();
-    while ($row = $resProf->fetch_assoc()) {
-        $availableProfessors[] = $row;
-    }
-    $stmtProf->close();
+$sqlProf = "SELECT professor_user_id, professor_name, professor_surname
+            FROM professor
+            WHERE professor_user_id NOT IN (
+                SELECT professor_user_id
+                FROM trimelous_invite
+                WHERE diplo_id = ?
+            )
+              AND professor_user_id <> (
+                SELECT p.professor_user_id
+                FROM diplo d
+                JOIN professor p ON d.diplo_professor = p.professor_user_id
+                WHERE d.diplo_id = ?
+              )
+            ORDER BY professor_surname, professor_name";
+$stmtProf = $connection->prepare($sqlProf);
+$stmtProf->bind_param("ii", $diploId, $diploId);
+
 }
 
 ?>
