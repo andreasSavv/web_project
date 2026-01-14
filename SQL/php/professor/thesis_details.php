@@ -5,6 +5,7 @@ include("connected.php");
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 // Μόνο καθηγητής
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
@@ -23,16 +24,7 @@ if ($diploId <= 0) {
     die("Λάθος diplo_id.");
 }
 
-/*
-  Φέρνουμε:
-  - diplo
-  - student (με βάση diplo_student = student_am)
-  - trimelous (prof1/2/3 = professor_user_id)
-  - ονόματα καθηγητών τριμελούς
-  Και ΕΛΕΓΧΟΥΜΕ ότι ο καθηγητής είναι είτε:
-    - επιβλέπων (μέσω diplo_professor -> professor.professor_id -> professor_user_id)
-    - ή μέλος τριμελούς (trimelous_professor1/2/3)
-*/
+// ---------- Φέρνουμε διπλωματική + student + trimelous + ονόματα τριμελούς ----------
 $sql = "
 SELECT
   d.diplo_id,
@@ -42,6 +34,7 @@ SELECT
   d.diplo_status,
   d.diplo_grade,
   d.diplo_student,
+  d.diplo_professor,
 
   s.student_am,
   s.student_name,
@@ -77,21 +70,8 @@ if (!$row) {
     die("Δεν βρέθηκε διπλωματική.");
 }
 
-// ✅ Έλεγχος δικαιώματος: supervisor ή μέλος τριμελούς
-// Supervisor: diplo_professor δείχνει professor_id, άρα το βρίσκουμε με έξτρα query:
-$sqlSup = "
-SELECT COUNT(*) AS c
-FROM diplo d
-JOIN professor p ON d.diplo_professor = p.professor_user_id
-WHERE d.diplo_id = ?
-  AND p.professor_user_id = ?
-";
-$stmtSup = $connection->prepare($sqlSup);
-$stmtSup->bind_param("ii", $diploId, $profUserId);
-$stmtSup->execute();
-$resSup = $stmtSup->get_result();
-$isSupervisor = ((int)($resSup->fetch_assoc()['c'] ?? 0) > 0);
-$stmtSup->close();
+// ---------- Έλεγχος πρόσβασης: supervisor ή μέλος τριμελούς ----------
+$isSupervisor = ((int)$row['diplo_professor'] === $profUserId);
 
 $isMember = (
     (int)($row['trimelous_professor1'] ?? 0) === $profUserId ||
@@ -110,6 +90,92 @@ function profFull($n, $s) {
     return $full !== "" ? $full : "-";
 }
 
+// -------- Timeline αλλαγών κατάστασης (diplo_date) --------
+$timeline = [];
+$sqlTL = "SELECT diplo_date, diplo_status
+          FROM diplo_date
+          WHERE diplo_id = ?
+          ORDER BY diplo_date ASC";
+$stmtTL = $connection->prepare($sqlTL);
+$stmtTL->bind_param("i", $diploId);
+$stmtTL->execute();
+$resTL = $stmtTL->get_result();
+while ($r = $resTL->fetch_assoc()) {
+    $timeline[] = $r;
+}
+$stmtTL->close();
+
+
+// -------------------- Pending actions (invites + cancel assignment) --------------------
+$pendingInvites = [];
+
+// Αν ο επιβλέπων ακυρώσει ανάθεση
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_assignment'])) {
+
+    // Μόνο επιβλέπων και μόνο αν είναι pending
+    if (!$isSupervisor || ($row['diplo_status'] ?? '') !== 'pending') {
+        die("Δεν έχετε δικαίωμα για αυτή την ενέργεια.");
+    }
+
+    $connection->begin_transaction();
+    try {
+        // 1) Αναιρούμε τον φοιτητή από τη διπλωματική
+        $stmt1 = $connection->prepare("UPDATE diplo SET diplo_student = NULL, diplo_status = 'pending' WHERE diplo_id = ?");
+        $stmt1->bind_param("i", $diploId);
+        $stmt1->execute();
+        $stmt1->close();
+
+        // 2) Διαγράφουμε όλες τις προσκλήσεις τριμελούς για αυτή τη διπλωματική
+        $stmt2 = $connection->prepare("DELETE FROM trimelous_invite WHERE diplo_id = ?");
+        $stmt2->bind_param("i", $diploId);
+        $stmt2->execute();
+        $stmt2->close();
+
+        // 3) Διαγράφουμε την τριμελή (αν υπάρχει γραμμή)
+        $stmt3 = $connection->prepare("DELETE FROM trimelous WHERE diplo_id = ?");
+        $stmt3->bind_param("i", $diploId);
+        $stmt3->execute();
+        $stmt3->close();
+
+        $connection->commit();
+
+        header("Location: thesis_details.php?diplo_id=" . $diploId);
+        exit;
+
+    } catch (Exception $e) {
+        $connection->rollback();
+        die("Σφάλμα ακύρωσης: " . $e->getMessage());
+    }
+}
+
+// Αν είναι pending, φέρνουμε invites για προβολή
+if (($row['diplo_status'] ?? '') === 'pending') {
+    $sqlInv = "
+        SELECT
+            ti.diplo_id,
+            ti.diplo_student_am,
+            ti.professor_user_id,
+            ti.trimelous_date,
+            ti.invite_status,
+            ti.invite_accept_date,
+            ti.invite_deny_date,
+            p.professor_name,
+            p.professor_surname
+        FROM trimelous_invite ti
+        JOIN professor p ON p.professor_user_id = ti.professor_user_id
+        WHERE ti.diplo_id = ?
+        ORDER BY ti.trimelous_date ASC
+    ";
+    $stmtInv = $connection->prepare($sqlInv);
+    $stmtInv->bind_param("i", $diploId);
+    $stmtInv->execute();
+    $resInv = $stmtInv->get_result();
+    while ($r = $resInv->fetch_assoc()) {
+        $pendingInvites[] = $r;
+    }
+    $stmtInv->close();
+}
+
 $studentFull = "-";
 if (!empty($row['student_am'])) {
     $studentFull = $row['student_surname'] . " " . $row['student_name'] . " (ΑΜ: " . $row['student_am'] . ")";
@@ -124,15 +190,17 @@ if (!empty($row['student_am'])) {
 </head>
 <body>
 
-<div class="container mt-4" style="max-width: 900px;">
+<div class="container mt-4" style="max-width: 1000px;">
   <a class="btn btn-secondary mb-3" href="diplomas.php">⟵ Πίσω στη λίστα</a>
 
   <div class="card shadow-sm">
     <div class="card-header fw-bold">
       Διπλωματική #<?= (int)$row['diplo_id'] ?> — <?= htmlspecialchars($row['diplo_title'] ?? '') ?>
     </div>
+
     <div class="card-body">
       <p><strong>Κατάσταση:</strong> <?= htmlspecialchars($row['diplo_status'] ?? '-') ?></p>
+      <p><strong>Ρόλος μου:</strong> <?= $isSupervisor ? 'Επιβλέπων' : 'Μέλος τριμελούς' ?></p>
       <p><strong>Φοιτητής:</strong> <?= htmlspecialchars($studentFull) ?></p>
 
       <hr>
@@ -158,14 +226,89 @@ if (!empty($row['student_am'])) {
         <li>Professor 3: <?= htmlspecialchars(profFull($row['p3_name'], $row['p3_surname'])) ?></li>
       </ul>
 
+      <!-- =================== Υπό Ανάθεση actions =================== -->
+      <?php if (($row['diplo_status'] ?? '') === 'pending'): ?>
+        <hr>
+        <h5 class="fw-bold">Υπό Ανάθεση — Προσκλήσεις τριμελούς</h5>
+
+        <?php if (empty($pendingInvites)): ?>
+            <p class="text-muted">Δεν υπάρχουν προσκλήσεις για αυτή τη διπλωματική.</p>
+        <?php else: ?>
+            <table class="table table-sm table-bordered mt-2">
+                <thead class="table-light">
+                    <tr>
+                        <th>Διδάσκων</th>
+                        <th>Κατάσταση</th>
+                        <th>Ημ/νία Πρόσκλησης</th>
+                        <th>Ημ/νία Αποδοχής</th>
+                        <th>Ημ/νία Απόρριψης</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($pendingInvites as $inv): ?>
+                    <tr>
+                        <td><?= htmlspecialchars(($inv['professor_surname'] ?? '') . " " . ($inv['professor_name'] ?? '')) ?></td>
+                        <td><?= htmlspecialchars($inv['invite_status'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars($inv['trimelous_date'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars($inv['invite_accept_date'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars($inv['invite_deny_date'] ?? '-') ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <?php if ($isSupervisor && !empty($row['diplo_student'])): ?>
+            <div class="alert alert-warning mt-3">
+                <div class="fw-bold mb-2">Ενέργεια επιβλέποντα</div>
+                <p class="mb-2">
+                    Μπορείτε να ακυρώσετε την ανάθεση θέματος στον φοιτητή.
+                    Θα διαγραφούν όλες οι προσκλήσεις και η τριμελής.
+                </p>
+
+                <form method="POST" onsubmit="return confirm('Σίγουρα θέλετε να ακυρώσετε την ανάθεση; Θα διαγραφούν οι προσκλήσεις.');">
+                    <button type="submit" name="cancel_assignment" class="btn btn-danger">
+                        Ακύρωση ανάθεσης
+                    </button>
+                </form>
+            </div>
+        <?php endif; ?>
+      <?php endif; ?>
+      <!-- =========================================================== -->
+
+      <hr>
+
+      <h5 class="fw-bold">Χρονολόγιο ενεργειών (αλλαγές κατάστασης)</h5>
+      <?php if (empty($timeline)): ?>
+          <p class="text-muted">Δεν υπάρχουν καταχωρημένες αλλαγές κατάστασης.</p>
+      <?php else: ?>
+          <?php $lastIndex = count($timeline) - 1; ?>
+          <table class="table table-sm table-bordered mt-2">
+              <thead class="table-light">
+                  <tr>
+                      <th style="width: 220px;">Ημερομηνία</th>
+                      <th>Κατάσταση</th>
+                  </tr>
+              </thead>
+              <tbody>
+              <?php foreach ($timeline as $i => $t): ?>
+                  <tr>
+                      <td><?= htmlspecialchars($t['diplo_date']) ?></td>
+                      <td>
+                          <?= htmlspecialchars($t['diplo_status']) ?>
+                          <?php if ($i === $lastIndex): ?>
+                              <span class="badge bg-success ms-2">τρέχουσα</span>
+                          <?php endif; ?>
+                      </td>
+                  </tr>
+              <?php endforeach; ?>
+              </tbody>
+          </table>
+      <?php endif; ?>
+
       <hr>
 
       <p><strong>Τελικός βαθμός:</strong> <?= htmlspecialchars($row['diplo_grade'] ?? '-') ?></p>
-
-      <!-- placeholders για να το επεκτείνουμε μετά -->
-      <p class="text-muted mb-0">
-        Timeline αλλαγών κατάστασης / Νημερτής / Πρακτικό: θα τα δέσουμε μόλις αποφασίσουμε πού είναι στη ΒΔ σου.
-      </p>
 
     </div>
   </div>
