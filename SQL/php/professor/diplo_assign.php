@@ -3,6 +3,7 @@ session_start();
 include("db_connect.php");
 include("connected.php");
 
+
 // Έλεγχος ρόλου
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'professor') {
     header("Location: login.php");
@@ -172,7 +173,7 @@ if (isset($_POST['cancel_assignment'])) {
             <form method="GET">
                 <input type="hidden" name="select_diplo" value="<?= $selected_diplo ?>">
                 <input type="text" class="form-control" name="search" placeholder="ΑΜ, όνομα ή επώνυμο">
-                <button class="btn btn-primary w-100 mt-2">Αναζήτηση</button>
+                <button class="btn btn-primary w-100 mt-2" type="submit">Αναζήτηση</button>
             </form>
         </div>
     </div>

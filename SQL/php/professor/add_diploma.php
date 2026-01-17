@@ -124,6 +124,7 @@ if ($res) {
                         <th>Περιγραφή</th>
                         <th>PDF</th>
                         <th>Ενέργειες</th>
+                        
                     </tr>
                 </thead>
 
@@ -140,7 +141,7 @@ if ($res) {
                             <?php endif; ?>
                         </td>
                         <td>
-                            <a href="edit_topic.php?id=<?= $t['diplo_id'] ?>" class="btn btn-warning btn-sm">Επεξεργασία</a>
+                            <a href="edit_diploma.php?id=<?= $t['diplo_id'] ?>" class="btn btn-warning btn-sm">Επεξεργασία</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

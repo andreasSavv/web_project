@@ -3,6 +3,10 @@ session_start();
 include("db_connect.php");
 include("connected.php");
 
+// Προσωρινά για debug – μπορείς να τα σβήσεις μετά αν θες
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // 1. Μόνο συνδεδεμένος φοιτητής
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
     header("Location: login.php");
@@ -43,6 +47,10 @@ $success_message = "";
 $error_message   = "";
 $info_message    = "";
 
+// Πίνακες για προσκλήσεις & διαθέσιμους καθηγητές
+$invites = [];
+$availableProfessors = [];
+
 // 4. Αν ΔΕΝ είμαστε στη φάση "Υπό ανάθεση" (pending)
 if ($diploStatus !== 'pending') {
     $info_message = "Η διπλωματική σας δεν είναι πλέον στη φάση 'Υπό ανάθεση'. "
@@ -53,12 +61,32 @@ if ($diploStatus !== 'pending') {
 if ($diploStatus === 'pending') {
 
     // 5α. Αν ο φοιτητής έστειλε νέα πρόσκληση
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['professor_user_id'])) {
-        $profUserId = (int)$_POST['professor_user_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['professor_user_id'])) {
+    $profUserId = (int)$_POST['professor_user_id'];
 
-        if ($profUserId <= 0) {
-            $error_message = "Πρέπει να επιλέξετε Διδάσκοντα.";
+    if ($profUserId <= 0) {
+        $error_message = "Πρέπει να επιλέξετε Διδάσκοντα.";
+    } else {
+
+        // 1) Βρίσκουμε τον επιβλέποντα για αυτή τη διπλωματική (professor_user_id)
+        $sqlSup = "SELECT p.professor_user_id 
+                   FROM diplo d
+                   JOIN professor p ON d.diplo_professor = p.professor_user_id
+                   WHERE d.diplo_id = ?";
+        $stmtSup = $connection->prepare($sqlSup);
+        $stmtSup->bind_param("i", $diploId);
+        $stmtSup->execute();
+        $resSup = $stmtSup->get_result();
+        $rowSup = $resSup->fetch_assoc();
+        $stmtSup->close();
+
+        $supervisorUserId = $rowSup ? (int)$rowSup['professor_user_id'] : null;
+
+        // 2) Αν ο φοιτητής πάει να καλέσει τον επιβλέποντα → κόβεται
+        if ($supervisorUserId !== null && $profUserId === $supervisorUserId) {
+            $error_message = "Δεν μπορείτε να προσκαλέσετε τον επιβλέποντα ως μέλος της τριμελούς.";
         } else {
+
             // Έλεγχος αν έχει ήδη σταλεί πρόσκληση σε αυτόν τον καθηγητή
             $sqlCheck = "SELECT COUNT(*) AS cnt 
                          FROM trimelous_invite 
@@ -92,6 +120,8 @@ if ($diploStatus === 'pending') {
             }
         }
     }
+}
+
 
     // 5β. Φέρνουμε όλες τις προσκλήσεις για αυτή τη διπλωματική
     $sqlInv = "SELECT ti.*, p.professor_name, p.professor_surname
@@ -103,7 +133,6 @@ if ($diploStatus === 'pending') {
     $stmtInv->bind_param("i", $diploId);
     $stmtInv->execute();
     $resInv = $stmtInv->get_result();
-    $invites = [];
     while ($row = $resInv->fetch_assoc()) {
         $invites[] = $row;
     }
@@ -124,8 +153,21 @@ if ($diploStatus === 'pending') {
         $prof2 = (int)$accepted[0]['professor_user_id'];
         $prof3 = (int)$accepted[1]['professor_user_id'];
 
-        // Ενημερώνουμε τον πίνακα trimelous (υποθέτουμε ότι υπάρχει ήδη γραμμή για αυτό το diplo_id)
-        // Αν δεν υπάρχει, τη δημιουργούμε.
+        // Βρίσκουμε τον επιβλέποντα (professor_user_id) από τον πίνακα diplo + professor
+        $sqlSup = "SELECT p.professor_user_id 
+                   FROM diplo d
+                   JOIN professor p ON d.diplo_professor = p.professor_user_id
+                   WHERE d.diplo_id = ?";
+        $stmtSup = $connection->prepare($sqlSup);
+        $stmtSup->bind_param("i", $diploId);
+        $stmtSup->execute();
+        $resSup = $stmtSup->get_result();
+        $rowSup = $resSup->fetch_assoc();
+        $stmtSup->close();
+
+        $supervisorUserId = isset($rowSup['professor_user_id']) ? (int)$rowSup['professor_user_id'] : null;
+
+        // Ελέγχουμε αν υπάρχει ήδη γραμμή trimelous
         $sqlHasTri = "SELECT COUNT(*) AS c FROM trimelous WHERE diplo_id = ?";
         $stmtHas = $connection->prepare($sqlHasTri);
         $stmtHas->bind_param("i", $diploId);
@@ -135,20 +177,24 @@ if ($diploStatus === 'pending') {
         $stmtHas->close();
 
         if ($rowHas['c'] == 0) {
-            // δημιουργούμε γραμμή trimelous μόνο με professor2, professor3
-            $sqlInsTri = "INSERT INTO trimelous (diplo_id, trimelous_professor2, trimelous_professor3)
-                          VALUES (?, ?, ?)";
+            // Δεν υπάρχει γραμμή → τη δημιουργούμε με professor1, professor2, professor3
+            $sqlInsTri = "INSERT INTO trimelous 
+                          (diplo_id, trimelous_professor1, trimelous_professor2, trimelous_professor3)
+                          VALUES (?, ?, ?, ?)";
             $stmtInsTri = $connection->prepare($sqlInsTri);
-            $stmtInsTri->bind_param("iii", $diploId, $prof2, $prof3);
+            $stmtInsTri->bind_param("iiii", $diploId, $supervisorUserId, $prof2, $prof3);
             $stmtInsTri->execute();
             $stmtInsTri->close();
         } else {
-            // ενημερώνουμε την υπάρχουσα
+            // Υπάρχει ήδη γραμμή → ενημερώνουμε professor2,3
+            // και βάζουμε / διορθώνουμε professor1 αν είναι NULL/0
             $sqlUpdTri = "UPDATE trimelous
-                          SET trimelous_professor2 = ?, trimelous_professor3 = ?
+                          SET trimelous_professor1 = COALESCE(NULLIF(trimelous_professor1, 0), ?),
+                              trimelous_professor2 = ?,
+                              trimelous_professor3 = ?
                           WHERE diplo_id = ?";
             $stmtUpdTri = $connection->prepare($sqlUpdTri);
-            $stmtUpdTri->bind_param("iii", $prof2, $prof3, $diploId);
+            $stmtUpdTri->bind_param("iiii", $supervisorUserId, $prof2, $prof3, $diploId);
             $stmtUpdTri->execute();
             $stmtUpdTri->close();
         }
@@ -174,24 +220,25 @@ if ($diploStatus === 'pending') {
     }
 
     // 5ε. Λίστα διαθέσιμων καθηγητών για νέα πρόσκληση
-    $sqlProf = "SELECT professor_user_id, professor_name, professor_surname
-                FROM professor
-                WHERE professor_user_id NOT IN (
-                    SELECT professor_user_id
-                    FROM trimelous_invite
-                    WHERE diplo_id = ?
-                )
-                ORDER BY professor_surname, professor_name";
-    $stmtProf = $connection->prepare($sqlProf);
-    $stmtProf->bind_param("i", $diploId);
-    $stmtProf->execute();
-    $resProf = $stmtProf->get_result();
-    $availableProfessors = [];
-    while ($row = $resProf->fetch_assoc()) {
-        $availableProfessors[] = $row;
-    }
-    $stmtProf->close();
+$sqlProf = "SELECT professor_user_id, professor_name, professor_surname
+            FROM professor
+            WHERE professor_user_id NOT IN (
+                SELECT professor_user_id
+                FROM trimelous_invite
+                WHERE diplo_id = ?
+            )
+              AND professor_user_id <> (
+                SELECT p.professor_user_id
+                FROM diplo d
+                JOIN professor p ON d.diplo_professor = p.professor_user_id
+                WHERE d.diplo_id = ?
+              )
+            ORDER BY professor_surname, professor_name";
+$stmtProf = $connection->prepare($sqlProf);
+$stmtProf->bind_param("ii", $diploId, $diploId);
+
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="el">
