@@ -180,7 +180,50 @@ $studentFull = "-";
 if (!empty($row['student_am'])) {
     $studentFull = $row['student_surname'] . " " . $row['student_name'] . " (ΑΜ: " . $row['student_am'] . ")";
 }
+
+// ---------- Supervisor action: set to "under review" ----------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_under_review'])) {
+
+    if (!$isSupervisor) {
+        die("Δεν έχετε δικαίωμα για αυτή την ενέργεια.");
+    }
+
+    if (($row['diplo_status'] ?? '') !== 'active') {
+        die("Η ενέργεια επιτρέπεται μόνο όταν η διπλωματική είναι σε κατάσταση 'active'.");
+    }
+
+    $connection->begin_transaction();
+    try {
+        // Update status
+        $stmt1 = $connection->prepare("UPDATE diplo SET diplo_status = 'under review' WHERE diplo_id = ?");
+        $stmt1->bind_param("i", $diploId);
+        $stmt1->execute();
+        $stmt1->close();
+
+        // Add to timeline
+        $stmt2 = $connection->prepare("INSERT INTO diplo_date (diplo_id, diplo_date, diplo_status) VALUES (?, NOW(), 'under review')");
+        $stmt2->bind_param("i", $diploId);
+        $stmt2->execute();
+        $stmt2->close();
+
+        $connection->commit();
+
+        header("Location: thesis_details.php?diplo_id=" . $diploId);
+        exit;
+
+    } catch (Exception $e) {
+        $connection->rollback();
+        die("Σφάλμα αλλαγής κατάστασης: " . $e->getMessage());
+    }
+}
 ?>
+
+
+
+
+
+
+<!----------------------------------- ΗΤΜΛ -------------- -->
 <!DOCTYPE html>
 <html lang="el">
 <head>
@@ -225,6 +268,32 @@ if (!empty($row['student_am'])) {
         <li>Professor 2: <?= htmlspecialchars(profFull($row['p2_name'], $row['p2_surname'])) ?></li>
         <li>Professor 3: <?= htmlspecialchars(profFull($row['p3_name'], $row['p3_surname'])) ?></li>
       </ul>
+     
+      <hr>
+      <h6 class="fw-bold">Σημειώσεις</h6>
+      <p>Εδώ μπορείτε να προσθέσετε σημειώσεις για την Διπλωματική Εργασία<br>
+      <a class="btn btn-outline-primary" href="prof_show_notes.php?diplo_id=<?= (int)$diploId ?>">
+        Σημειώσεις
+        </a>
+        </p>
+        
+    <hr>
+    <?php if ($isSupervisor && ($row['diplo_status'] ?? '') === 'active'): ?>
+    <div class="alert alert-info mt-3">
+        <div class="fw-bold mb-2">Ενέργειες επιβλέποντα</div>
+        <p class="mb-2">
+            Όταν είστε έτοιμοι, μπορείτε να αλλάξετε την κατάσταση σε <strong>Υπό Εξέταση</strong>
+            ώστε ο φοιτητής να προχωρήσει στις ενέργειες της εξέτασης.
+        </p>
+        <form method="POST" onsubmit="return confirm('Θέλετε σίγουρα να αλλάξετε την κατάσταση σε Υπό Εξέταση;');">
+            <button type="submit" name="set_under_review" class="btn btn-warning">
+                Μετάβαση σε «Υπό Εξέταση»
+            </button>
+        </form>
+    </div>
+<?php endif; ?>
+
+
 
       <!-- =================== Υπό Ανάθεση actions =================== -->
       <?php if (($row['diplo_status'] ?? '') === 'pending'): ?>
