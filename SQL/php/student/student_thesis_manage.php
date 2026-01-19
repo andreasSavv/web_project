@@ -27,6 +27,58 @@ $stmt = $connection->prepare($sqlDiplo);
 $stmt->bind_param("i", $studentAm);
 $stmt->execute();
 $diplo = $stmt->get_result()->fetch_assoc();
+
+// ------------------------------------- edwwwwwwww pintnw -----------------------------------------
+
+// ===================== FINAL GRADE + REPO LINK =====================
+$finalGrade = null;
+
+// Πιάσε τελικό βαθμό από trimelis_grades
+$stmtFG = $connection->prepare("
+    SELECT trimelis_final_grade
+    FROM trimelis_grades
+    WHERE diplo_id = ?
+    LIMIT 1
+");
+$stmtFG->bind_param("i", $diploId);
+$stmtFG->execute();
+$grRow = $stmtFG->get_result()->fetch_assoc();
+$stmtFG->close();
+
+if ($grRow && $grRow['trimelis_final_grade'] !== null) {
+    $finalGrade = (float)$grRow['trimelis_final_grade'];
+}
+
+$repoLink = $diplo['diplo_repo_link'] ?? '';
+
+// Καταχώρηση / ενημέρωση link Νημερτή (μόνο αν υπάρχουν βαθμοί)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_repo_link'])) {
+    if ($finalGrade === null) {
+        $error_message = "Δεν μπορείτε να καταχωρήσετε σύνδεσμο Νημερτή πριν ολοκληρωθεί η βαθμολόγηση.";
+    } else {
+        $newLink = trim($_POST['repo_link'] ?? '');
+
+        if ($newLink === '') {
+            $error_message = "Βάλε ένα link.";
+        } elseif (!filter_var($newLink, FILTER_VALIDATE_URL)) {
+            $error_message = "Το link δεν είναι έγκυρο.";
+        } else {
+            $stmtUp = $connection->prepare("UPDATE diplo SET diplo_repo_link = ? WHERE diplo_id = ?");
+            $stmtUp->bind_param("si", $newLink, $diploId);
+            $stmtUp->execute();
+            $stmtUp->close();
+
+            header("Location: student_thesis_manage.php?ok=repo");
+            exit;
+        }
+    }
+}
+
+if (isset($_GET['ok']) && $_GET['ok'] === 'repo') {
+    $success_message = "✅ Ο σύνδεσμος Νημερτή αποθηκεύτηκε.";
+}
+
+
 $stmt->close();
 
 if (!$diplo) die("Δεν σας έχει ανατεθεί διπλωματική εργασία.");
@@ -566,6 +618,40 @@ if ($isUnderReview) {
                     </p>
                 </div>
             <?php endif; ?>
+
+            <?php if ($finalGrade !== null): ?>
+    <hr>
+    <h2>Περάτωση / Πρακτικό / Νημερτής</h2>
+
+    <p><strong>Τελικός βαθμός τριμελούς:</strong> <?php echo htmlspecialchars(number_format($finalGrade, 2)); ?></p>
+
+    <p>
+        <a href="student_exam_report.php?diplo_id=<?php echo (int)$diploId; ?>" target="_blank">
+            📄 Προβολή Πρακτικού Εξέτασης (HTML)
+        </a>
+    </p>
+
+    <h4>Σύνδεσμος Νημερτή (τελικό κείμενο)</h4>
+
+    <?php if (!empty($repoLink)): ?>
+        <p>Τρέχον link: <a href="<?php echo htmlspecialchars($repoLink); ?>" target="_blank"><?php echo htmlspecialchars($repoLink); ?></a></p>
+    <?php else: ?>
+        <p class="text-muted">Δεν έχει καταχωρηθεί ακόμα link Νημερτή.</p>
+    <?php endif; ?>
+
+    <form method="POST" style="margin-top:10px;">
+        <input type="text" name="repo_link" placeholder="https://..." value="<?php echo htmlspecialchars($repoLink); ?>" required style="width:70%;">
+        <button type="submit" name="save_repo_link">Αποθήκευση link Νημερτή</button>
+    </form>
+
+<?php else: ?>
+    <hr>
+    <h2>Περάτωση / Πρακτικό / Νημερτής</h2>
+    <p class="text-muted">
+        Το πρακτικό και ο σύνδεσμος Νημερτή θα εμφανιστούν αφού καταχωρηθούν οι βαθμοί από όλα τα μέλη της τριμελούς.
+    </p>
+<?php endif; ?>
+
 
             <form method="POST" style="margin-top:10px;">
                 <label>Ημερομηνία:</label><br>
