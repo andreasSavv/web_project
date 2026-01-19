@@ -163,7 +163,14 @@ if (isset($_GET['export'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
+<nav class="navbar navbar-dark bg-dark p-2">
+    <span class="navbar-brand ms-3">Λίστα Διπλωματικών Εργασιών</span>
 
+    <div class="ms-auto d-flex gap-2 me-3">
+        <a href="professor_page.php" class="btn btn-success">Αρχική</a>
+        <a href="logout.php" class="btn btn-danger">Αποσύνδεση</a>
+    </div>
+</nav>
 <div class="container mt-4">
     <h2 class="text-center">Λίστα Διπλωματικών Εργασιών</h2>
 
