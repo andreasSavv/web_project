@@ -195,13 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_under_review'])) 
     $connection->begin_transaction();
     try {
         // Update status
-        $stmt1 = $connection->prepare("UPDATE diplo SET diplo_status = 'under review' WHERE diplo_id = ?");
+        $stmt1 = $connection->prepare("UPDATE diplo SET diplo_status = 'under_review' WHERE diplo_id = ?");
         $stmt1->bind_param("i", $diploId);
         $stmt1->execute();
         $stmt1->close();
 
         // Add to timeline
-        $stmt2 = $connection->prepare("INSERT INTO diplo_date (diplo_id, diplo_date, diplo_status) VALUES (?, NOW(), 'under review')");
+        $stmt2 = $connection->prepare("INSERT INTO diplo_date (diplo_id, diplo_date, diplo_status) VALUES (?, NOW(), 'under_review')");
         $stmt2->bind_param("i", $diploId);
         $stmt2->execute();
         $stmt2->close();
