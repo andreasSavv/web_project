@@ -18,8 +18,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role
 $student = Student_Connected($connection);
 if (!$student) die("Δεν βρέθηκαν στοιχεία φοιτητή.");
 
-$studentAm = (int)($student['student_am'] ?? 0);
-if ($studentAm <= 0) die("Λείπει το AM του φοιτητή.");
+$studentAm = $student['student_am'] ?? null;
+if (!$studentAm) die("Λείπει το AM του φοιτητή.");
 
 // 3) Διπλωματική φοιτητή
 $sqlDiplo = "SELECT * FROM diplo WHERE diplo_student = ? LIMIT 1";
@@ -32,34 +32,18 @@ $stmt->close();
 if (!$diplo) die("Δεν σας έχει ανατεθεί διπλωματική εργασία.");
 
 $diploId     = (int)$diplo['diplo_id'];
-$diploStatus = (string)($diplo['diplo_status'] ?? '');
-$supervisorUserId = (int)($diplo['diplo_professor'] ?? 0); // επιβλέπων (user_id)
-
-// flags
-$isUnderReview = ($diploStatus === 'under review' || $diploStatus === 'under_review');
+$diploStatus = $diplo['diplo_status'] ?? '';
+$supervisorUserId = (int)($diplo['diplo_professor'] ?? 0); // επιβλέπων (professor_user_id)
 
 $success_message = "";
 $error_message   = "";
 $info_message    = "";
 
-// Πίνακες
 $invites = [];
 $availableProfessors = [];
 
-// ===================== Helper functions (ΜΟΝΟ ΜΙΑ ΦΟΡΑ) =====================
-function links_to_array($text) {
-    $lines = preg_split("/\r\n|\n|\r/", (string)$text);
-    $out = [];
-    foreach ($lines as $l) {
-        $l = trim($l);
-        if ($l !== "") $out[] = $l;
-    }
-    return $out;
-}
-function array_to_links($arr) {
-    return implode("\n", $arr);
-}
-// ============================================================================
+// Under review flag (δέχεται και τα δύο ονόματα)
+$isUnderReview = ($diploStatus === 'under review' || $diploStatus === 'under_review');
 
 // 4) info αν δεν είμαστε pending
 if ($diploStatus !== 'pending') {
@@ -70,7 +54,7 @@ if ($diploStatus !== 'pending') {
 // ====================== PENDING FLOW ======================
 if ($diploStatus === 'pending') {
 
-    // Αποστολή νέας πρόσκλησης
+    // 5α) Αποστολή νέας πρόσκλησης
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['professor_user_id'])) {
         $profUserId = (int)$_POST['professor_user_id'];
 
@@ -80,17 +64,15 @@ if ($diploStatus === 'pending') {
             $error_message = "Δεν μπορείτε να προσκαλέσετε τον επιβλέποντα ως μέλος της τριμελούς.";
         } else {
 
-            // duplicate invite check
+            // έλεγχος duplicate invite
             $sqlCheck = "SELECT COUNT(*) AS cnt
                          FROM trimelous_invite
                          WHERE diplo_id = ? AND professor_user_id = ?";
             $stmtCheck = $connection->prepare($sqlCheck);
             $stmtCheck->bind_param("ii", $diploId, $profUserId);
             $stmtCheck->execute();
-            $cntRow = $stmtCheck->get_result()->fetch_assoc();
+            $cnt = (int)($stmtCheck->get_result()->fetch_assoc()['cnt'] ?? 0);
             $stmtCheck->close();
-
-            $cnt = (int)($cntRow['cnt'] ?? 0);
 
             if ($cnt > 0) {
                 $error_message = "Έχετε ήδη στείλει πρόσκληση σε αυτόν τον Διδάσκοντα.";
@@ -110,7 +92,7 @@ if ($diploStatus === 'pending') {
         }
     }
 
-    // Φέρνουμε invites
+    // 5β) Φέρνουμε invites
     $sqlInv = "SELECT ti.*, p.professor_name, p.professor_surname
                FROM trimelous_invite ti
                JOIN professor p ON ti.professor_user_id = p.professor_user_id
@@ -123,22 +105,19 @@ if ($diploStatus === 'pending') {
     while ($r = $resInv->fetch_assoc()) $invites[] = $r;
     $stmtInv->close();
 
-    // accepted
+    // 5γ) accepted
     $accepted = array_values(array_filter($invites, fn($r) => ($r['invite_status'] ?? '') === 'accept'));
     $acceptedCount = count($accepted);
 
-    // Αν >=2 accept -> active + trimelous update
+    // 5δ) Αν >=2 accept -> active + trimelous update
     if ($acceptedCount >= 2) {
         usort($accepted, fn($a,$b) => strcmp($a['trimelous_date'], $b['trimelous_date']));
 
-        // αφαιρούμε τον supervisor αν somehow υπάρχει
-        if ($supervisorUserId > 0) {
-            $accepted = array_values(array_filter($accepted, fn($r) => (int)$r['professor_user_id'] !== $supervisorUserId));
-        }
-
-        if (count($accepted) >= 2) {
-            $prof2 = (int)$accepted[0]['professor_user_id'];
-            $prof3 = (int)$accepted[1]['professor_user_id'];
+        // παίρνουμε 2 πρώτους accepted (εκτός επιβλέποντα)
+        $acceptedFiltered = array_values(array_filter($accepted, fn($r) => (int)$r['professor_user_id'] !== $supervisorUserId));
+        if (count($acceptedFiltered) >= 2) {
+            $prof2 = (int)$acceptedFiltered[0]['professor_user_id'];
+            $prof3 = (int)$acceptedFiltered[1]['professor_user_id'];
 
             $connection->begin_transaction();
             try {
@@ -147,10 +126,8 @@ if ($diploStatus === 'pending') {
                 $stmtHas = $connection->prepare($sqlHasTri);
                 $stmtHas->bind_param("i", $diploId);
                 $stmtHas->execute();
-                $hasRow = $stmtHas->get_result()->fetch_assoc();
+                $has = (int)($stmtHas->get_result()->fetch_assoc()['c'] ?? 0);
                 $stmtHas->close();
-
-                $has = (int)($hasRow['c'] ?? 0);
 
                 if ($has === 0) {
                     $sqlInsTri = "INSERT INTO trimelous
@@ -197,10 +174,12 @@ if ($diploStatus === 'pending') {
                 $connection->rollback();
                 $error_message = "Σφάλμα ενημέρωσης τριμελούς/κατάστασης: " . $e->getMessage();
             }
+        } else {
+            $error_message = "Δεν υπάρχουν 2 αποδοχές από διαφορετικούς καθηγητές (εκτός επιβλέποντα).";
         }
     }
 
-    // διαθέσιμοι καθηγητές (exclude invited + exclude supervisor)
+    // 5ε) διαθέσιμοι καθηγητές (exclude already invited + exclude supervisor)
     $sqlProf = "SELECT professor_user_id, professor_name, professor_surname
                 FROM professor
                 WHERE professor_user_id NOT IN (
@@ -220,14 +199,29 @@ if ($diploStatus === 'pending') {
 // ====================== END PENDING FLOW ======================
 
 
-// ===================== UNDER REVIEW: Draft + Links =====================
+// ===================== UNDER REVIEW: Draft + Links + Presentation =====================
 $draftRow = null;
 $currentPdf = "";
 $linksArr = [];
+$presentationRow = null;
+$presentationLocked = false;
+
+function links_to_array($text) {
+    $lines = preg_split("/\r\n|\n|\r/", (string)$text);
+    $out = [];
+    foreach ($lines as $l) {
+        $l = trim($l);
+        if ($l !== "") $out[] = $l;
+    }
+    return $out;
+}
+function array_to_links($arr) {
+    return implode("\n", $arr);
+}
 
 if ($isUnderReview) {
 
-    // Φέρνουμε/δημιουργούμε draft row
+    // ---------- Draft row ----------
     $stmtD = $connection->prepare("SELECT diplo_id, draft_diplo_pdf, draft_links FROM draft WHERE diplo_id = ? LIMIT 1");
     $stmtD->bind_param("i", $diploId);
     $stmtD->execute();
@@ -239,14 +233,13 @@ if ($isUnderReview) {
         $stmtIns->bind_param("i", $diploId);
         $stmtIns->execute();
         $stmtIns->close();
-
         $draftRow = ['diplo_id' => $diploId, 'draft_diplo_pdf' => null, 'draft_links' => null];
     }
 
     $currentPdf = $draftRow['draft_diplo_pdf'] ?? '';
     $linksArr   = links_to_array($draftRow['draft_links'] ?? '');
 
-    // Upload PDF
+    // ---------- Upload draft PDF ----------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_draft_pdf'])) {
 
         if (!isset($_FILES['draft_pdf']) || $_FILES['draft_pdf']['error'] !== UPLOAD_ERR_OK) {
@@ -254,38 +247,43 @@ if ($isUnderReview) {
         } else {
             $tmp  = $_FILES['draft_pdf']['tmp_name'];
             $name = $_FILES['draft_pdf']['name'];
-            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 
+            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
             if ($ext !== 'pdf') {
                 $error_message = "Επιτρέπεται μόνο PDF.";
             } else {
-                $dirRel = "uploads/drafts";
-                $dirAbs = __DIR__ . "/" . $dirRel;
-
-                if (!is_dir($dirAbs)) {
-                    $error_message = "Λείπει ο φάκελος $dirRel. Δημιούργησέ τον μέσα στο htdocs.";
+                $maxBytes = 10 * 1024 * 1024; // 10MB
+                if ($_FILES['draft_pdf']['size'] > $maxBytes) {
+                    $error_message = "Το αρχείο είναι πολύ μεγάλο (max 10MB).";
                 } else {
-                    $safeName  = "diplo_" . $diploId . "_draft_" . time() . ".pdf";
-                    $targetRel = $dirRel . "/" . $safeName;
-                    $targetAbs = $dirAbs . "/" . $safeName;
+                    $dirRel = "uploads/drafts";
+                    $dirAbs = __DIR__ . "/" . $dirRel;
 
-                    if (move_uploaded_file($tmp, $targetAbs)) {
-                        $stmtUp = $connection->prepare("UPDATE draft SET draft_diplo_pdf = ? WHERE diplo_id = ?");
-                        $stmtUp->bind_param("si", $targetRel, $diploId);
-                        $stmtUp->execute();
-                        $stmtUp->close();
-
-                        header("Location: student_thesis_manage.php");
-                        exit;
+                    if (!is_dir($dirAbs)) {
+                        $error_message = "Λείπει ο φάκελος $dirRel. Δημιούργησέ τον μέσα στο htdocs.";
                     } else {
-                        $error_message = "Αποτυχία αποθήκευσης αρχείου στον server.";
+                        $safeName  = "diplo_" . $diploId . "_draft_" . time() . ".pdf";
+                        $targetRel = $dirRel . "/" . $safeName;
+                        $targetAbs = $dirAbs . "/" . $safeName;
+
+                        if (move_uploaded_file($tmp, $targetAbs)) {
+                            $stmtUp = $connection->prepare("UPDATE draft SET draft_diplo_pdf = ? WHERE diplo_id = ?");
+                            $stmtUp->bind_param("si", $targetRel, $diploId);
+                            $stmtUp->execute();
+                            $stmtUp->close();
+
+                            header("Location: student_thesis_manage.php");
+                            exit;
+                        } else {
+                            $error_message = "Αποτυχία αποθήκευσης αρχείου στον server.";
+                        }
                     }
                 }
             }
         }
     }
 
-    // Add link
+    // ---------- Add link ----------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_draft_link'])) {
         $url = trim($_POST['new_link'] ?? "");
 
@@ -294,7 +292,9 @@ if ($isUnderReview) {
         } elseif (!filter_var($url, FILTER_VALIDATE_URL)) {
             $error_message = "Το link δεν είναι έγκυρο.";
         } else {
-            if (!in_array($url, $linksArr, true)) $linksArr[] = $url;
+            if (!in_array($url, $linksArr, true)) {
+                $linksArr[] = $url;
+            }
 
             $newText = array_to_links($linksArr);
             $stmtUp = $connection->prepare("UPDATE draft SET draft_links = ? WHERE diplo_id = ?");
@@ -307,7 +307,7 @@ if ($isUnderReview) {
         }
     }
 
-    // Delete link
+    // ---------- Delete link ----------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_draft_link'])) {
         $idx = (int)($_POST['idx'] ?? -1);
 
@@ -325,17 +325,89 @@ if ($isUnderReview) {
         }
     }
 
-    // Re-fetch
-    $stmtD2 = $connection->prepare("SELECT diplo_id, draft_diplo_pdf, draft_links FROM draft WHERE diplo_id = ? LIMIT 1");
-    $stmtD2->bind_param("i", $diploId);
-    $stmtD2->execute();
-    $draftRow2 = $stmtD2->get_result()->fetch_assoc();
-    $stmtD2->close();
+    // ---------- Presentation row ----------
+    $stmtP = $connection->prepare("SELECT * FROM presentation WHERE diplo_id = ? LIMIT 1");
+    $stmtP->bind_param("i", $diploId);
+    $stmtP->execute();
+    $presentationRow = $stmtP->get_result()->fetch_assoc();
+    $stmtP->close();
 
-    $currentPdf = $draftRow2['draft_diplo_pdf'] ?? $currentPdf;
-    $linksArr   = links_to_array($draftRow2['draft_links'] ?? '');
+    if (!$presentationRow) {
+        $stmtPI = $connection->prepare("INSERT INTO presentation (diplo_id) VALUES (?)");
+        $stmtPI->bind_param("i", $diploId);
+        $stmtPI->execute();
+        $stmtPI->close();
+
+        $presentationRow = [
+            'diplo_id' => $diploId,
+            'presentation_date' => null,
+            'presentation_time' => null,
+            'presentation_way'  => null,
+            'presentation_room' => null,
+            'presentation_link' => null
+        ];
+    }
+
+    // Save presentation
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_presentation'])) {
+
+        $p_date = trim($_POST['presentation_date'] ?? "");
+        $p_time = trim($_POST['presentation_time'] ?? "");
+        $p_way  = trim($_POST['presentation_way'] ?? ""); // 'in person' / 'online'
+        $p_room = trim($_POST['presentation_room'] ?? "");
+        $p_link = trim($_POST['presentation_link'] ?? "");
+
+        if ($p_date === "" || $p_time === "" || ($p_way !== "in person" && $p_way !== "online")) {
+            $error_message = "Συμπλήρωσε ημερομηνία, ώρα και τρόπο εξέτασης.";
+        } else {
+            if ($p_way === "in person") {
+                if ($p_room === "") {
+                    $error_message = "Για δια ζώσης εξέταση πρέπει να συμπληρώσεις αίθουσα.";
+                } else {
+                    $p_link = ""; // καθαρίζουμε link
+                }
+            } else { // online
+                if ($p_link === "" || !filter_var($p_link, FILTER_VALIDATE_URL)) {
+                    $error_message = "Για διαδικτυακή εξέταση πρέπει να συμπληρώσεις έγκυρο σύνδεσμο.";
+                } else {
+                    $p_room = ""; // καθαρίζουμε αίθουσα
+                }
+            }
+        }
+
+        if ($error_message === "") {
+            $sqlPU = "UPDATE presentation
+                      SET presentation_date = ?,
+                          presentation_time = ?,
+                          presentation_way  = ?,
+                          presentation_room = ?,
+                          presentation_link = ?
+                      WHERE diplo_id = ?";
+            $stmtPU = $connection->prepare($sqlPU);
+            $stmtPU->bind_param("sssssi", $p_date, $p_time, $p_way, $p_room, $p_link, $diploId);
+            $stmtPU->execute();
+            $stmtPU->close();
+
+            header("Location: student_thesis_manage.php");
+            exit;
+        }
+    }
+
+    // Re-fetch presentation
+    $stmtP2 = $connection->prepare("SELECT * FROM presentation WHERE diplo_id = ? LIMIT 1");
+    $stmtP2->bind_param("i", $diploId);
+    $stmtP2->execute();
+    $presentationRow = $stmtP2->get_result()->fetch_assoc();
+    $stmtP2->close();
+
+    $presentationLocked = (
+        !empty($presentationRow['presentation_date']) &&
+        !empty($presentationRow['presentation_time']) &&
+        !empty($presentationRow['presentation_way'])
+    );
 }
-// =================== END UNDER REVIEW: Draft + Links ===================
+// =================== END UNDER REVIEW: Draft + Links + Presentation ===================
+
 ?>
 <!DOCTYPE html>
 <html lang="el">
@@ -345,8 +417,10 @@ if ($isUnderReview) {
     <style>
         body { font-family: Arial, sans-serif; background: #eef6ff; margin: 0; padding: 0; }
         .container { max-width: 1000px; margin: 40px auto; background: #fff; padding: 20px 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { margin-top: 0; }
         .back-link { text-decoration: none; color: #007bff; }
         .back-link:hover { text-decoration: underline; }
+        .message-success { color: green; margin-top: 10px; }
         .message-error { color: red; margin-top: 10px; }
         .info { margin-top: 10px; color: #555; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -364,6 +438,10 @@ if ($isUnderReview) {
 
     <?php if ($info_message): ?>
         <div class="info"><?php echo $info_message; ?></div>
+    <?php endif; ?>
+
+    <?php if ($success_message): ?>
+        <div class="message-success"><?php echo htmlspecialchars($success_message); ?></div>
     <?php endif; ?>
 
     <?php if ($error_message): ?>
@@ -412,57 +490,138 @@ if ($isUnderReview) {
             </form>
         <?php endif; ?>
 
-    <?php elseif ($isUnderReview): ?>
-
-        <hr>
-        <h2>Υπό εξέταση – Πρόχειρο κείμενο & Υλικό</h2>
-
-        <h4>1) Πρόχειρο κείμενο (PDF)</h4>
-
-        <?php if (!empty($currentPdf)): ?>
-            <p>Τρέχον draft: <a href="<?php echo htmlspecialchars($currentPdf); ?>" target="_blank">Άνοιγμα PDF</a></p>
-        <?php else: ?>
-            <p class="text-muted">Δεν έχει ανέβει ακόμη draft.</p>
-        <?php endif; ?>
-
-        <form method="POST" enctype="multipart/form-data" style="margin-top:10px;">
-            <input type="file" name="draft_pdf" accept="application/pdf" required>
-            <button type="submit" name="upload_draft_pdf">Ανέβασμα PDF</button>
-        </form>
-
-        <hr>
-
-        <h4>2) Links υλικού (Drive / YouTube κλπ)</h4>
-
-        <form method="POST" style="margin-top:10px;">
-            <input type="text" name="new_link" placeholder="https://..." required style="width:70%;">
-            <button type="submit" name="add_draft_link">Προσθήκη link</button>
-        </form>
-
-        <div style="margin-top:15px;">
-            <?php if (empty($linksArr)): ?>
-                <p class="text-muted">Δεν υπάρχουν links.</p>
-            <?php else: ?>
-                <ul>
-                    <?php foreach ($linksArr as $i => $url): ?>
-                        <li style="margin-bottom:6px;">
-                            <a href="<?php echo htmlspecialchars($url); ?>" target="_blank">
-                                <?php echo htmlspecialchars($url); ?>
-                            </a>
-                            <form method="POST" style="display:inline;" onsubmit="return confirm('Διαγραφή link;');">
-                                <input type="hidden" name="idx" value="<?php echo (int)$i; ?>">
-                                <button type="submit" name="delete_draft_link">Διαγραφή</button>
-                            </form>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-            <?php endif; ?>
-        </div>
-
     <?php else: ?>
 
-        <h2>Η διπλωματική δεν βρίσκεται στη φάση «Υπό ανάθεση» ή «Υπό εξέταση».</h2>
-        <p>Σε αυτή τη φάση θα μπουν άλλα actions (active/finished κλπ).</p>
+        <?php if ($isUnderReview): ?>
+
+            <hr>
+            <h2>Υπό εξέταση – Πρόχειρο κείμενο & Υλικό</h2>
+
+            <h4>1) Πρόχειρο κείμενο (PDF)</h4>
+            <?php if (!empty($currentPdf)): ?>
+                <p>Τρέχον draft: <a href="<?php echo htmlspecialchars($currentPdf); ?>" target="_blank">Άνοιγμα PDF</a></p>
+            <?php else: ?>
+                <p class="text-muted">Δεν έχει ανέβει ακόμη draft.</p>
+            <?php endif; ?>
+
+            <form method="POST" enctype="multipart/form-data" style="margin-top:10px;">
+                <input type="file" name="draft_pdf" accept="application/pdf" required>
+                <button type="submit" name="upload_draft_pdf">Ανέβασμα PDF</button>
+            </form>
+
+            <hr>
+
+            <h4>2) Links υλικού (Drive / YouTube κλπ)</h4>
+            <form method="POST" style="margin-top:10px;">
+                <input type="text" name="new_link" placeholder="https://..." required style="width:70%;">
+                <button type="submit" name="add_draft_link">Προσθήκη link</button>
+            </form>
+
+            <div style="margin-top:15px;">
+                <?php if (empty($linksArr)): ?>
+                    <p class="text-muted">Δεν υπάρχουν links.</p>
+                <?php else: ?>
+                    <ul>
+                        <?php foreach ($linksArr as $i => $url): ?>
+                            <li style="margin-bottom:6px;">
+                                <a href="<?php echo htmlspecialchars($url); ?>" target="_blank"><?php echo htmlspecialchars($url); ?></a>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Διαγραφή link;');">
+                                    <input type="hidden" name="idx" value="<?php echo (int)$i; ?>">
+                                    <button type="submit" name="delete_draft_link">Διαγραφή</button>
+                                </form>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+
+            <hr>
+            <h2>3) Καταχώρηση ημερομηνίας & τρόπου εξέτασης</h2>
+
+            <?php if ($presentationLocked): ?>
+                <div style="background:#e6ffed;border:1px solid #2ecc71;padding:15px;border-radius:8px;margin-bottom:20px;">
+                    <strong>✅ Η εξέταση έχει οριστεί!</strong><br><br>
+                    <ul style="margin:0; padding-left:18px;">
+                        <li><strong>Ημερομηνία:</strong>
+                            <?php echo date("d/m/Y", strtotime($presentationRow['presentation_date'])); ?>
+                        </li>
+                        <li><strong>Ώρα:</strong>
+                            <?php echo substr((string)$presentationRow['presentation_time'], 0, 5); ?>
+                        </li>
+                        <li><strong>Τρόπος:</strong>
+                            <?php echo ($presentationRow['presentation_way'] === 'online') ? 'Διαδικτυακά' : 'Δια ζώσης'; ?>
+                        </li>
+                        <?php if (($presentationRow['presentation_way'] ?? '') === 'online'): ?>
+                            <li><strong>Σύνδεσμος:</strong>
+                                <a href="<?php echo htmlspecialchars($presentationRow['presentation_link'] ?? ''); ?>" target="_blank">Άνοιγμα</a>
+                            </li>
+                        <?php else: ?>
+                            <li><strong>Αίθουσα:</strong>
+                                <?php echo htmlspecialchars($presentationRow['presentation_room'] ?? ''); ?>
+                            </li>
+                        <?php endif; ?>
+                    </ul>
+                    <p style="margin-top:10px; font-size:0.9em; color:#555;">
+                        Η πληροφορία αυτή είναι ορατή σε όλα τα μέλη της τριμελούς.
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" style="margin-top:10px;">
+                <label>Ημερομηνία:</label><br>
+                <input type="date" name="presentation_date"
+                       value="<?php echo htmlspecialchars($presentationRow['presentation_date'] ?? ''); ?>"
+                       required><br><br>
+
+                <label>Ώρα:</label><br>
+                <input type="time" name="presentation_time"
+                       value="<?php echo htmlspecialchars($presentationRow['presentation_time'] ?? ''); ?>"
+                       required><br><br>
+
+                <label>Τρόπος εξέτασης:</label><br>
+                <select name="presentation_way" id="presentation_way" required>
+                    <option value="">-- Επιλογή --</option>
+                    <option value="in person" <?php echo (($presentationRow['presentation_way'] ?? '') === 'in person') ? 'selected' : ''; ?>>
+                        Δια ζώσης
+                    </option>
+                    <option value="online" <?php echo (($presentationRow['presentation_way'] ?? '') === 'online') ? 'selected' : ''; ?>>
+                        Διαδικτυακά
+                    </option>
+                </select>
+                <br><br>
+
+                <div id="onsite_fields" style="display:none;">
+                    <label>Αίθουσα εξέτασης:</label><br>
+                    <input type="text" name="presentation_room"
+                           value="<?php echo htmlspecialchars($presentationRow['presentation_room'] ?? ''); ?>"
+                           placeholder="π.χ. Αίθουσα Β3"><br><br>
+                </div>
+
+                <div id="online_fields" style="display:none;">
+                    <label>Σύνδεσμος παρακολούθησης:</label><br>
+                    <input type="text" name="presentation_link"
+                           value="<?php echo htmlspecialchars($presentationRow['presentation_link'] ?? ''); ?>"
+                           placeholder="https://..."><br><br>
+                </div>
+
+                <button type="submit" name="save_presentation">Αποθήκευση</button>
+            </form>
+
+            <script>
+            (function(){
+                function toggleFields() {
+                    var way = document.getElementById('presentation_way').value;
+                    document.getElementById('onsite_fields').style.display = (way === 'in person') ? 'block' : 'none';
+                    document.getElementById('online_fields').style.display = (way === 'online') ? 'block' : 'none';
+                }
+                document.getElementById('presentation_way').addEventListener('change', toggleFields);
+                toggleFields();
+            })();
+            </script>
+
+        <?php else: ?>
+            <p>Δεν υπάρχουν ενέργειες για αυτή την κατάσταση εδώ (προς το παρόν).</p>
+        <?php endif; ?>
 
     <?php endif; ?>
 
