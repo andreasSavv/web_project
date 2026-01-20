@@ -22,7 +22,15 @@ $studentAm = $student['student_am'] ?? null;
 if (!$studentAm) die("Λείπει το AM του φοιτητή.");
 
 // 3) Διπλωματική φοιτητή
-$sqlDiplo = "SELECT * FROM diplo WHERE diplo_student = ? LIMIT 1";
+$sqlDiplo = "
+  SELECT *
+  FROM diplo
+  WHERE diplo_student = ?
+  ORDER BY
+    FIELD(diplo_status, 'under review', 'under_review', 'active', 'finished', 'pending', 'cancelled'),
+    diplo_id DESC
+  LIMIT 1
+";
 $stmt = $connection->prepare($sqlDiplo);
 $stmt->bind_param("i", $studentAm);
 $stmt->execute();
