@@ -177,6 +177,15 @@ $stmt->close();
     <div class="field-label">Χρόνος από την επίσημη ανάθεση:</div>
     <div><?php echo htmlspecialchars($assignText); ?></div>
 
+    <div class="field-label">Βαθμός:</div>
+<div>
+  <?php
+    $g = $diplo['diplo_grade'] ?? null;
+    echo ($g !== null && $g !== '') ? htmlspecialchars($g) : "Δεν έχει καταχωρηθεί ακόμη βαθμός.";
+  ?>
+</div>
+
+
 <?php endif; ?>
 
 </div>
