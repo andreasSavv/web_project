@@ -696,7 +696,7 @@ if ($isUnderReview) {
                            placeholder="https://..."><br><br>
                 </div>
 
-                <button type="submit" name="save_presentation">Αποθήκευση </button>
+                <button type="submit" name="save_presentation">Αποθήκευση</button>
             </form>
 
             <script>
@@ -711,24 +711,13 @@ if ($isUnderReview) {
             })();
             </script>
 
-            
-            <<hr>
-<h2>Πρακτικό εξέτασης και Νιμέρτης</h2>
 
-<?php if (!$allGraded): ?>
-    <p class="text-muted">
+            <hr>
+            <h2>Πρακτικό εξέτασης και Νιμέρτης</h2>
+            <p class="text-muted">
         Το πρακτικό και ο σύνδεσμος Νημερτή θα εμφανιστούν αφού καταχωρηθούν οι βαθμοί από όλα τα μέλη της τριμελούς.
     </p>
-<?php else: ?>
-    <p class="text-success">
-        ✅ Έχουν καταχωρηθεί βαθμοί από όλα τα μέλη της τριμελούς.
-    </p>
-
-    <a href="student_minutes.php">Προβολή Πρακτικού Εξέτασης</a>
-
-    <!-- προαιρετικά: εδώ μπορείς να βάλεις και φόρμα για Nimertis link -->
-<?php endif; ?>
-
+            <a href="student_minutes.php">Προβολή Πρακτικού Εξέτασης</a>
 
 
         <?php else: ?>
