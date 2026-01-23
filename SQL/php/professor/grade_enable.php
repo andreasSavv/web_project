@@ -13,17 +13,19 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== "professor") {
     exit;
 }
 
-$user = Professor_Connected($connection);
-$profUserId = (int)($user['professor_user_id'] ?? $user['professor_id'] ?? 0);
+$prof = Professor_Connected($connection);
+$profUserId = (int)($prof['professor_user_id'] ?? $prof['professor_id'] ?? 0);
 if ($profUserId <= 0) die("Δεν βρέθηκαν στοιχεία καθηγητή.");
+
+function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 $message = "";
 
-// ------------------ Ενεργοποίηση βαθμολόγησης ------------------
+// enable grading
 if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['enable_grading'])) {
     $diplo_id = (int)($_POST['diplo_id'] ?? 0);
 
-    // μόνο επιβλέπων + μόνο under review
+    // μόνο επιβλέπων + μόνο under_review
     $chk = $connection->prepare("
         SELECT diplo_id
         FROM diplo
@@ -39,9 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['enable_grading'])) {
 
     if (!$ok) {
         $message = "❌ Δεν επιτρέπεται (πρέπει να είστε επιβλέπων και η ΔΕ να είναι 'Υπό Εξέταση').";
-    } else {
+        header("Location: grade_enable.php?msg=" . urlencode($message));
+        exit;
+    }
 
-        // enable flag
+    // ✅ FIX: γράφουμε ΚΑΙ diplo.grading_enabled=1 ΚΑΙ trimelis_grades row
+    $connection->begin_transaction();
+    try {
         $upd = $connection->prepare("
             UPDATE diplo
             SET grading_enabled = 1
@@ -51,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['enable_grading'])) {
         $upd->execute();
         $upd->close();
 
-        // ensure row exists in trimelis_grades (ιδανικά UNIQUE στο diplo_id)
+        // ensure row exists in trimelis_grades (προτείνεται UNIQUE στο diplo_id)
         $ins = $connection->prepare("
             INSERT INTO trimelis_grades (diplo_id)
             VALUES (?)
@@ -61,16 +67,23 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['enable_grading'])) {
         $ins->execute();
         $ins->close();
 
-        $message = "✅ Η βαθμολόγηση ενεργοποιήθηκε για τη ΔΕ (ID: $diplo_id).";
-    }
+        $connection->commit();
 
-    header("Location: grade_enable.php?msg=" . urlencode($message));
-    exit;
+        // πάμε στο thesis_details
+        header("Location: thesis_details.php?diplo_id=" . $diplo_id . "&msg=" . urlencode("✅ Η βαθμολόγηση ενεργοποιήθηκε."));
+        exit;
+
+    } catch (Exception $e) {
+        $connection->rollback();
+        $message = "❌ Σφάλμα: " . $e->getMessage();
+        header("Location: grade_enable.php?msg=" . urlencode($message));
+        exit;
+    }
 }
 
-if (isset($_GET['msg'])) $message = $_GET['msg'];
+if (isset($_GET['msg'])) $message = (string)$_GET['msg'];
 
-// ------------------ Λίστα ΔΕ επιβλέποντα σε under review ------------------
+// list under review supervisor
 $list = [];
 $stmt = $connection->prepare("
     SELECT
@@ -97,113 +110,105 @@ $stmt->close();
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>9) Ενεργοποίηση Βαθμού</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Ενεργοποίηση Βαθμολόγησης</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#eef6ff; margin:0; padding:0; }
+    .container { max-width:1100px; margin:40px auto; background:#fff; padding:20px 30px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    h1 { margin:0 0 6px 0; }
+    .subtitle { color:#555; font-size:0.95rem; margin-bottom:10px; }
+    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px; flex-wrap:wrap; }
+    .actions { display:flex; gap:10px; align-items:center; }
+    .btn { text-decoration:none; padding:8px 12px; border-radius:6px; font-size:0.9rem; display:inline-block; border:none; cursor:pointer; color:#fff; }
+    .btn-dark { background:#212529; }
+    .btn-dark:hover { background:#111; }
+    .btn-danger { background:#dc3545; }
+    .btn-danger:hover { background:#b52a37; }
+    .btn-primary { background:#0d6efd; }
+    .btn-primary:hover { background:#0b5ed7; }
+    .btn-success { background:#198754; }
+    .btn-success:hover { background:#157347; }
+    .alert { padding:10px 12px; border-radius:6px; margin-bottom:15px; background:#e8f2ff; border:1px solid #b6d4fe; color:#084298; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td { border:1px solid #dde7f5; padding:10px; text-align:left; vertical-align:middle; }
+    th { background:#007bff; color:#fff; }
+    tr:nth-child(even) { background:#ffffff; }
+    tr:nth-child(odd) { background:#f8fbff; }
+    .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:0.8rem; font-weight:bold; }
+    .bg-success { background:#198754; color:#fff; }
+    .bg-warning { background:#ffc107; color:#111; }
+    .bg-secondary { background:#6c757d; color:#fff; }
+  </style>
 </head>
 <body>
+<div class="container">
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container-fluid">
-    <button class="btn btn-outline-light me-2 d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle sidebar">
-      ☰ Μενού
-    </button>
-
-    <span class="navbar-brand">Η Πλατφόρμα</span>
-    <a href="professor_page.php" class="btn btn-success ms-2">Αρχική</a>
-
-    <div class="ms-auto">
-      <a href="logout.php" class="btn btn-danger">Αποσύνδεση</a>
+  <div class="top-bar">
+    <div>
+      <h1>✅ Ενεργοποίηση βαθμολόγησης</h1>
+      <div class="subtitle">Διπλωματικές σας σε κατάσταση <strong>Υπό Εξέταση</strong>.</div>
+    </div>
+    <div class="actions">
+      <a class="btn btn-dark" href="professor_page.php">Αρχική</a>
+      <a class="btn btn-danger" href="logout.php">Αποσύνδεση</a>
     </div>
   </div>
-</nav>
 
-<div class="container-fluid">
-  <div class="row">
-    
+  <?php if ($message): ?>
+    <div class="alert"><?= h($message) ?></div>
+  <?php endif; ?>
 
-    <main class="col-md-8 col-lg-9 ms-sm-auto px-3 px-md-4 pt-4">
+  <?php if (empty($list)): ?>
+    <div class="subtitle">Δεν υπάρχουν διπλωματικές σε κατάσταση Υπό Εξέταση.</div>
+  <?php else: ?>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Τίτλος</th>
+          <th>Φοιτητής</th>
+          <th>Status</th>
+          <th>Enabled</th>
+          <th>Ενέργεια</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($list as $d): ?>
+        <?php
+          $stud = "-";
+          if (!empty($d['diplo_student'])) {
+            $stud = $d['diplo_student'] . " - " . trim(($d['student_surname'] ?? '') . " " . ($d['student_name'] ?? ''));
+            $stud = trim($stud);
+          }
+          $enabled = ((int)($d['grading_enabled'] ?? 0) === 1);
+        ?>
+        <tr>
+          <td><?= (int)$d['diplo_id'] ?></td>
+          <td><?= h($d['diplo_title'] ?? '') ?></td>
+          <td><?= h($stud) ?></td>
+          <td><span class="badge bg-secondary"><?= h($d['diplo_status'] ?? '-') ?></span></td>
+          <td>
+            <?php if ($enabled): ?>
+              <span class="badge bg-success">Ναι</span>
+            <?php else: ?>
+              <span class="badge bg-warning">Όχι</span>
+            <?php endif; ?>
+          </td>
+          <td style="min-width:260px;">
+            <?php if ($enabled): ?>
+              <a class="btn btn-primary" href="thesis_details.php?diplo_id=<?= (int)$d['diplo_id'] ?>">Άνοιγμα λεπτομερειών</a>
+            <?php else: ?>
+              <form method="POST" onsubmit="return confirm('Ενεργοποίηση δυνατότητας βαθμολόγησης;');" style="display:inline;">
+                <input type="hidden" name="diplo_id" value="<?= (int)$d['diplo_id'] ?>">
+                <button type="submit" name="enable_grading" class="btn btn-success">Ενεργοποίηση</button>
+              </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
 
-      <div class="card shadow-lg p-4">
-        <h2 class="mb-3 text-center text-primary">
-          9) Ενεργοποίηση Δυνατότητας Καταχώρησης Βαθμού (ως Επιβλέπων)
-        </h2>
-        <p class="text-center text-muted mb-4">
-          Εμφανίζονται οι διπλωματικές σας σε κατάσταση <strong>Υπό Εξέταση</strong>.
-        </p>
-
-        <?php if (!empty($message)): ?>
-          <div class="alert alert-info text-center"><?= htmlspecialchars($message) ?></div>
-        <?php endif; ?>
-
-        <?php if (empty($list)): ?>
-          <div class="alert alert-warning text-center">
-            Δεν υπάρχουν διπλωματικές σε κατάσταση <strong>Υπό Εξέταση</strong>.
-          </div>
-        <?php else: ?>
-          <div class="table-responsive">
-            <table class="table table-bordered table-striped align-middle">
-              <thead class="table-dark">
-                <tr>
-                  <th>ID</th>
-                  <th>Τίτλος</th>
-                  <th>Φοιτητής</th>
-                  <th>Status</th>
-                  <th>Grading Enabled</th>
-                  <th>Ενέργεια</th>
-                </tr>
-              </thead>
-              <tbody>
-              <?php foreach ($list as $d): ?>
-                <?php
-                  $studTxt = "-";
-                  if (!empty($d['diplo_student'])) {
-                      $studTxt = $d['diplo_student'] . " - " . trim(($d['student_surname'] ?? '') . " " . ($d['student_name'] ?? ''));
-                      $studTxt = trim($studTxt);
-                  }
-                  $enabled = ((int)$d['grading_enabled'] === 1);
-                ?>
-                <tr>
-                  <td><?= (int)$d['diplo_id'] ?></td>
-                  <td><?= htmlspecialchars($d['diplo_title'] ?? '') ?></td>
-                  <td><?= htmlspecialchars($studTxt) ?></td>
-                  <td><span class="badge bg-secondary"><?= htmlspecialchars($d['diplo_status'] ?? '-') ?></span></td>
-                  <td>
-                    <?php if ($enabled): ?>
-                      <span class="badge bg-success">Ναι</span>
-                    <?php else: ?>
-                      <span class="badge bg-warning text-dark">Όχι</span>
-                    <?php endif; ?>
-                  </td>
-                  <td style="min-width:220px;">
-                    <?php if ($enabled): ?>
-                      <a class="btn btn-primary btn-sm w-100"
-                         href="diplo_grade.php?diplo_id=<?= (int)$d['diplo_id'] ?>">
-                         Μετάβαση στη βαθμολόγηση
-                      </a>
-                    <?php else: ?>
-                      <form method="POST" onsubmit="return confirm('Ενεργοποίηση δυνατότητας βαθμολόγησης;');">
-                        <input type="hidden" name="diplo_id" value="<?= (int)$d['diplo_id'] ?>">
-                        <button type="submit" name="enable_grading" class="btn btn-success btn-sm w-100">
-                          Ενεργοποίηση βαθμού
-                        </button>
-                      </form>
-                    <?php endif; ?>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        <?php endif; ?>
-
-      </div>
-
-    </main>
-  </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

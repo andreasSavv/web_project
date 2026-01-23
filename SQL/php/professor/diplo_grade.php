@@ -22,6 +22,8 @@ if ($diplo_id <= 0) die("Μη έγκυρο diplo_id.");
 
 $message = "";
 
+function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
 // ------------------ Helpers ------------------
 function clamp_score($v) {
     $v = str_replace(",", ".", (string)$v);
@@ -73,7 +75,17 @@ if (!$isSupervisor && !$isMember) {
     die("❌ Δεν έχετε δικαίωμα πρόσβασης σε αυτή τη βαθμολόγηση.");
 }
 
+// ✅ grading enabled (σωστό)
 $gradingEnabled = ((int)($diplo['grading_enabled'] ?? 0) === 1);
+
+if (!$gradingEnabled) {
+    // fallback: αν υπάρχει trimelis_grades row
+    $chkG = $connection->prepare("SELECT diplo_id FROM trimelis_grades WHERE diplo_id=? LIMIT 1");
+    $chkG->bind_param("i", $diplo_id);
+    $chkG->execute();
+    $gradingEnabled = (bool)$chkG->get_result()->fetch_assoc();
+    $chkG->close();
+}
 
 // ------------------ Φέρνουμε τα δικά μου κριτήρια (αν υπάρχουν) ------------------
 $my = null;
@@ -88,11 +100,11 @@ $stmtMy->execute();
 $my = $stmtMy->get_result()->fetch_assoc();
 $stmtMy->close();
 
-// ------------------ Αποθήκευση κριτηρίων (INSERT/UPDATE) ------------------
+// ------------------ Αποθήκευση κριτηρίων ------------------
 if (isset($_POST['save_grade'])) {
 
     if (!$gradingEnabled) {
-        $message = "❌ Η βαθμολόγηση δεν έχει ενεργοποιηθεί από τον επιβλέποντα (επιλογή 9).";
+        $message = "❌ Η βαθμολόγηση δεν έχει ενεργοποιηθεί από τον επιβλέποντα (μέσα από τις λεπτομέρειες της διπλωματικής).";
     } else {
 
         $qg  = clamp_score($_POST['quality_goals'] ?? null);
@@ -121,7 +133,7 @@ if (isset($_POST['save_grade'])) {
             // 2) Υπολογισμός τελικού βαθμού καθηγητή (μέσος όρος 4 κριτηρίων)
             $prof_avg = round(($qg + $ti + $tq + $pre) / 4.0, 2);
 
-            // 3) Γράψιμο στον πίνακα trimelis_grades μόνο αν είναι μέλος τριμελούς
+            // 3) Γράψιμο στον πίνακα trimelis_grades ΜΟΝΟ αν είναι μέλος τριμελούς
             $col = null;
             if ($profUserId === $p1) $col = 'trimelis_professor1_grade';
             elseif ($profUserId === $p2) $col = 'trimelis_professor2_grade';
@@ -173,7 +185,7 @@ if (isset($_POST['save_grade'])) {
                     $uf->execute();
                     $uf->close();
 
-                    // (προαιρετικά) γράφουμε και στο diplo
+                    // γράφουμε και στο diplo
                     $ud = $connection->prepare("
                         UPDATE diplo
                         SET diplo_grade = ?
@@ -228,7 +240,6 @@ $tg->execute();
 $trimGrades = $tg->get_result()->fetch_assoc();
 $tg->close();
 
-// Καθηγητές τριμελούς (ονόματα)
 $triNames = ['p1' => '-', 'p2' => '-', 'p3' => '-'];
 $ids = array_values(array_filter([$p1, $p2, $p3], fn($x)=>$x>0));
 if (!empty($ids)) {
@@ -255,169 +266,185 @@ function avg_criteria_row($r){
     $a = [(float)$r['quality_goals'], (float)$r['time_interval'], (float)$r['text_quality'], (float)$r['Presentation']];
     return round(array_sum($a) / count($a), 2);
 }
+
+$roleBadge = $isSupervisor ? "Επιβλέπων" : "Μέλος τριμελούς";
 ?>
 <!DOCTYPE html>
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <title>10) Καταχώρηση Βαθμού</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Βαθμολόγηση Διπλωματικής</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#eef6ff; margin:0; padding:0; }
+    .container { max-width:1100px; margin:40px auto; background:#fff; padding:20px 30px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px; flex-wrap:wrap; }
+    .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .btn { text-decoration:none; padding:8px 12px; border-radius:6px; font-size:0.9rem; display:inline-block; border:none; cursor:pointer; }
+    .btn-success { background:#198754; color:#fff; }
+    .btn-success:hover { background:#157347; }
+    .btn-danger { background:#dc3545; color:#fff; }
+    .btn-danger:hover { background:#b52a37; }
+    .btn-primary { background:#0d6efd; color:#fff; }
+    .btn-primary:hover { background:#0b5ed7; }
+    .card { padding:15px 20px; border-radius:8px; background:#f8fbff; border:1px solid #dde7f5; margin-bottom:20px; }
+    .alert { padding:10px 12px; border-radius:6px; margin:12px 0; }
+    .alert-info { background:#e8f2ff; border:1px solid #b6d4fe; color:#084298; }
+    .alert-warn { background:#fff3cd; border:1px solid #ffecb5; color:#664d03; }
+    .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:0.8rem; font-weight:bold; }
+    .badge-blue { background:#0d6efd; color:#fff; }
+    .badge-green { background:#198754; color:#fff; }
+    .badge-yellow { background:#ffc107; color:#111; }
+    .input { width:100%; padding:10px; border:1px solid #cfe0f4; border-radius:6px; outline:none; }
+    .input:focus { border-color:#0d6efd; box-shadow:0 0 0 2px rgba(13,110,253,0.15); }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td { border:1px solid #dde7f5; padding:10px; text-align:left; vertical-align:middle; }
+    th { background:#007bff; color:#fff; }
+    tr:nth-child(even) { background:#ffffff; }
+    tr:nth-child(odd) { background:#f8fbff; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 850px){ .grid { grid-template-columns:1fr; } }
+    hr { border:none; border-top:1px solid #dde7f5; margin:15px 0; }
+  </style>
 </head>
-<body class="bg-light">
+<body>
+<div class="container">
 
-<nav class="navbar navbar-dark bg-dark p-2">
-  <span class="navbar-brand ms-3">10) Βαθμολόγηση Διπλωματικής (κριτήρια)</span>
-  <div class="ms-auto d-flex gap-2 me-3">
-    <a href="professor_page.php" class="btn btn-success">Αρχική</a>
-    <a href="logout.php" class="btn btn-danger">Αποσύνδεση</a>
+  <div class="top-bar">
+    <div>
+      <h2 style="margin:0;"><?= h($diplo['diplo_title'] ?? '') ?></h2>
+      <div style="margin-top:6px;">
+        <span class="badge badge-blue"><?= h($roleBadge) ?></span>
+        <?php if ($gradingEnabled): ?>
+          <span class="badge badge-green">Grading Enabled</span>
+        <?php else: ?>
+          <span class="badge badge-yellow">Grading Disabled</span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn btn-success" href="thesis_details.php?diplo_id=<?= (int)$diplo_id ?>#grading">← Πίσω</a>
+      <a class="btn btn-danger" href="logout.php">Αποσύνδεση</a>
+    </div>
   </div>
-</nav>
-
-<div class="container mt-4" style="max-width: 1100px;">
 
   <?php if ($message): ?>
-    <div class="alert alert-info text-center"><?= htmlspecialchars($message) ?></div>
+    <div class="alert alert-info"><?= h($message) ?></div>
   <?php endif; ?>
 
-  <div class="card shadow-sm mb-4">
-    <div class="card-header fw-bold">
-      <?= htmlspecialchars($diplo['diplo_title'] ?? '') ?>
-      <?php if ($isSupervisor): ?>
-        <span class="badge bg-primary ms-2">Επιβλέπων</span>
-      <?php else: ?>
-        <span class="badge bg-secondary ms-2">Μέλος τριμελούς</span>
-      <?php endif; ?>
-      <?php if ($gradingEnabled): ?>
-        <span class="badge bg-success ms-2">Grading Enabled</span>
-      <?php else: ?>
-        <span class="badge bg-warning text-dark ms-2">Grading Disabled</span>
-      <?php endif; ?>
+  <?php if (!$gradingEnabled): ?>
+    <div class="alert alert-warn">
+      ⚠ Η καταχώρηση βαθμών δεν είναι ενεργή ακόμα. Ο επιβλέπων πρέπει να την ενεργοποιήσει από τις <strong>Λεπτομέρειες</strong>.
     </div>
+  <?php endif; ?>
 
-    <div class="card-body">
+  <div class="card">
+    <h3 style="margin-top:0;">Ο δικός μου βαθμός (κριτήρια 0-10)</h3>
 
-      <?php if (!$gradingEnabled): ?>
-        <div class="alert alert-warning">
-          ⚠ Η καταχώρηση βαθμών δεν είναι ενεργή ακόμα. Ο επιβλέπων πρέπει να την ενεργοποιήσει από το (9).
+    <form method="POST">
+      <div class="grid">
+        <div>
+          <div><strong>Ποιότητα στόχων</strong></div>
+          <input class="input" type="number" step="0.01" min="0" max="10" name="quality_goals"
+                 value="<?= h($my['quality_goals'] ?? '') ?>" <?= $gradingEnabled ? "" : "disabled" ?> required>
         </div>
-      <?php endif; ?>
-
-      <h5 class="fw-bold">Ο δικός μου βαθμός (κριτήρια 0-10)</h5>
-
-      <form method="POST" class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label">Ποιότητα στόχων</label>
-          <input type="number" step="0.01" min="0" max="10" name="quality_goals"
-                 value="<?= htmlspecialchars($my['quality_goals'] ?? '') ?>"
-                 class="form-control" <?= $gradingEnabled ? "" : "disabled" ?> required>
+        <div>
+          <div><strong>Χρονική διάρκεια</strong></div>
+          <input class="input" type="number" step="0.01" min="0" max="10" name="time_interval"
+                 value="<?= h($my['time_interval'] ?? '') ?>" <?= $gradingEnabled ? "" : "disabled" ?> required>
         </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Χρονική διάρκεια</label>
-          <input type="number" step="0.01" min="0" max="10" name="time_interval"
-                 value="<?= htmlspecialchars($my['time_interval'] ?? '') ?>"
-                 class="form-control" <?= $gradingEnabled ? "" : "disabled" ?> required>
+        <div>
+          <div><strong>Ποιότητα κειμένου</strong></div>
+          <input class="input" type="number" step="0.01" min="0" max="10" name="text_quality"
+                 value="<?= h($my['text_quality'] ?? '') ?>" <?= $gradingEnabled ? "" : "disabled" ?> required>
         </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Ποιότητα κειμένου</label>
-          <input type="number" step="0.01" min="0" max="10" name="text_quality"
-                 value="<?= htmlspecialchars($my['text_quality'] ?? '') ?>"
-                 class="form-control" <?= $gradingEnabled ? "" : "disabled" ?> required>
+        <div>
+          <div><strong>Παρουσίαση</strong></div>
+          <input class="input" type="number" step="0.01" min="0" max="10" name="Presentation"
+                 value="<?= h($my['Presentation'] ?? '') ?>" <?= $gradingEnabled ? "" : "disabled" ?> required>
         </div>
+      </div>
 
-        <div class="col-md-3">
-          <label class="form-label">Παρουσίαση</label>
-          <input type="number" step="0.01" min="0" max="10" name="Presentation"
-                 value="<?= htmlspecialchars($my['Presentation'] ?? '') ?>"
-                 class="form-control" <?= $gradingEnabled ? "" : "disabled" ?> required>
-        </div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-primary" style="width:100%;" name="save_grade" <?= $gradingEnabled ? "" : "disabled" ?>>
+          Αποθήκευση Βαθμού
+        </button>
+      </div>
+    </form>
+  </div>
 
-        <div class="col-12">
-          <button class="btn btn-primary w-100" name="save_grade"
-                  <?= $gradingEnabled ? "" : "disabled" ?>>
-            Αποθήκευση Βαθμού
-          </button>
-        </div>
-      </form>
+  <div class="card">
+    <h3 style="margin-top:0;">Βαθμοί αναλυτικά (κριτήρια)</h3>
 
-      <hr>
-
-      <h5 class="fw-bold">Βαθμοί αναλυτικά (κριτήρια) από όσους έχουν καταχωρήσει</h5>
-
-      <?php if (empty($allCriteria)): ?>
-        <p class="text-muted">Δεν έχει καταχωρηθεί κανένας βαθμός ακόμα.</p>
-      <?php else: ?>
-        <div class="table-responsive">
-          <table class="table table-bordered table-striped align-middle">
-            <thead class="table-dark">
-              <tr>
-                <th>Καθηγητής</th>
-                <th>Ποιότητα στόχων</th>
-                <th>Χρονική διάρκεια</th>
-                <th>Ποιότητα κειμένου</th>
-                <th>Παρουσίαση</th>
-                <th>Μ.Ο.</th>
-              </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($allCriteria as $r): ?>
-              <?php $avg = avg_criteria_row($r); ?>
-              <tr>
-                <td><?= htmlspecialchars(safe_prof_name($r)) ?></td>
-                <td><?= htmlspecialchars($r['quality_goals']) ?></td>
-                <td><?= htmlspecialchars($r['time_interval']) ?></td>
-                <td><?= htmlspecialchars($r['text_quality']) ?></td>
-                <td><?= htmlspecialchars($r['Presentation']) ?></td>
-                <td><strong><?= number_format($avg, 2) ?></strong></td>
-              </tr>
-            <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      <?php endif; ?>
-
-      <hr>
-
-      <h5 class="fw-bold">Συνοπτικοί βαθμοί τριμελούς (trimelis_grades)</h5>
-
-      <div class="table-responsive">
-        <table class="table table-bordered align-middle">
-          <thead class="table-dark">
+    <?php if (empty($allCriteria)): ?>
+      <div class="subtitle">Δεν έχει καταχωρηθεί κανένας βαθμός ακόμα.</div>
+    <?php else: ?>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
             <tr>
-              <th>Μέλος</th>
-              <th>Βαθμός</th>
+              <th>Καθηγητής</th>
+              <th>Ποιότητα στόχων</th>
+              <th>Χρονική διάρκεια</th>
+              <th>Ποιότητα κειμένου</th>
+              <th>Παρουσίαση</th>
+              <th>Μ.Ο.</th>
             </tr>
           </thead>
           <tbody>
+          <?php foreach ($allCriteria as $r): ?>
+            <?php $avg = avg_criteria_row($r); ?>
             <tr>
-              <td><?= htmlspecialchars($triNames['p1']) ?></td>
-              <td><?= htmlspecialchars($trimGrades['trimelis_professor1_grade'] ?? '-') ?></td>
+              <td><?= h(safe_prof_name($r)) ?></td>
+              <td><?= h($r['quality_goals']) ?></td>
+              <td><?= h($r['time_interval']) ?></td>
+              <td><?= h($r['text_quality']) ?></td>
+              <td><?= h($r['Presentation']) ?></td>
+              <td><strong><?= number_format($avg, 2) ?></strong></td>
             </tr>
-            <tr>
-              <td><?= htmlspecialchars($triNames['p2']) ?></td>
-              <td><?= htmlspecialchars($trimGrades['trimelis_professor2_grade'] ?? '-') ?></td>
-            </tr>
-            <tr>
-              <td><?= htmlspecialchars($triNames['p3']) ?></td>
-              <td><?= htmlspecialchars($trimGrades['trimelis_professor3_grade'] ?? '-') ?></td>
-            </tr>
-            <tr>
-              <td class="fw-bold">Τελικός Βαθμός (Μ.Ο.)</td>
-              <td class="fw-bold"><?= htmlspecialchars($trimGrades['trimelis_final_grade'] ?? '-') ?></td>
-            </tr>
+          <?php endforeach; ?>
           </tbody>
         </table>
       </div>
+    <?php endif; ?>
+  </div>
 
-      <div class="alert alert-secondary">
-        <strong>Σημείωση:</strong> Ο τελικός βαθμός υπολογίζεται αυτόματα όταν υπάρχουν και οι 3 βαθμοί.
-      </div>
+  <div class="card">
+    <h3 style="margin-top:0;">Συνοπτικοί βαθμοί τριμελούς</h3>
 
+    <div style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Μέλος</th>
+            <th>Βαθμός</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><?= h($triNames['p1']) ?></td>
+            <td><?= h($trimGrades['trimelis_professor1_grade'] ?? '-') ?></td>
+          </tr>
+          <tr>
+            <td><?= h($triNames['p2']) ?></td>
+            <td><?= h($trimGrades['trimelis_professor2_grade'] ?? '-') ?></td>
+          </tr>
+          <tr>
+            <td><?= h($triNames['p3']) ?></td>
+            <td><?= h($trimGrades['trimelis_professor3_grade'] ?? '-') ?></td>
+          </tr>
+          <tr>
+            <td><strong>Τελικός Βαθμός (Μ.Ο.)</strong></td>
+            <td><strong><?= h($trimGrades['trimelis_final_grade'] ?? '-') ?></strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:0;">
+      <strong>Σημείωση:</strong> Ο τελικός βαθμός υπολογίζεται αυτόματα όταν υπάρχουν και οι 3 βαθμοί.
     </div>
   </div>
 
 </div>
-
 </body>
 </html>
